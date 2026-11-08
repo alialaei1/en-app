@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ui.log_in }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div class="mx-auto max-w-md ll-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <div class="mb-7 text-center">
+      <div class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-extrabold text-slate-950 shadow-lg shadow-emerald-500/25">LL</div>
+      <p class="ll-eyebrow">LinguaLab</p>
+      <h1 class="ll-title">{{ ui.welcome_back }}</h1>
+      <p class="ll-lead mx-auto">{{ ui.login_lead }}</p>
+    </div>
+
+    <div class="ll-card p-5 sm:p-7">
+      <form method="post" class="space-y-5" novalidate>
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+
+        {% if form.non_field_errors %}
+          <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+
+        {% for field in form %}
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            <div dir="ltr">{{ field }}</div>
+            {% if field.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ field.errors|striptags }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        <button type="submit" class="ll-btn ll-btn-primary w-full">{{ ui.log_in }}</button>
+      </form>
+
+      <div class="my-6 flex items-center gap-3">
+        <div class="h-px flex-1 bg-slate-800"></div>
+        <span class="text-xs uppercase tracking-wide text-slate-500">{{ ui.soon }}</span>
+        <div class="h-px flex-1 bg-slate-800"></div>
+      </div>
+
+      <button type="button" disabled class="ll-btn ll-btn-ghost w-full cursor-not-allowed opacity-50">
+        {{ ui.continue_google }}
+      </button>
+
+      <p class="mt-6 text-center text-sm text-slate-400">
+        {{ ui.new_here }}
+        <a href="{% url 'signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="font-medium text-emerald-400 hover:text-emerald-300">{{ ui.create_an_account }}</a>
+      </p>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ profile.public_name }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div
+    class="ll-fade-in"
+    data-course-feed
+    data-endpoint="{% url 'public_profile' profile.user_id %}"
+    data-page="{{ feed_page|default:1 }}"
+    data-has-more="{% if feed_has_more %}1{% else %}0{% endif %}"
+    data-history="0"
+    {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+  >
+    <div class="ll-card mb-6 p-5 sm:p-6">
+      <div class="flex flex-wrap items-start gap-4 sm:gap-6">
+        {% if profile.avatar %}
+          <span class="ll-media ll-avatar">
+            <img src="{{ profile.avatar.url }}" alt="" decoding="async" />
+          </span>
+        {% else %}
+          <span class="ll-avatar grid place-items-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-bold text-slate-950">
+            {{ profile.public_name|slice:":1"|upper }}
+          </span>
+        {% endif %}
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h1 class="ll-title" dir="ltr" style="font-size:1.55rem">{{ profile.public_name }}</h1>
+            {% if is_own %}
+              <a href="{% url 'account' %}" class="ll-btn ll-btn-ghost" style="min-height:2.35rem">{{ ui.edit_profile }}</a>
+            {% endif %}
+          </div>
+          <p class="ll-eyebrow mt-1">{{ ui.creator }}</p>
+
+          <div class="mt-4 flex flex-wrap gap-5 text-sm">
+            <div>
+              <span class="font-semibold text-white">{{ course_count }}</span>
+              <span class="text-slate-400"> {{ ui.public_courses }}</span>
+            </div>
+            <div>
+              <span class="ll-stars">★ {{ creator_rating_display }}</span>
+              <span class="text-slate-400"> {{ ui.avg_rating }}</span>
+            </div>
+          </div>
+
+          {% if profile.bio %}
+            <p class="mt-4 max-w-xl text-sm leading-6 text-slate-300" dir="auto">{{ profile.bio }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3 flex items-center justify-between border-b border-slate-800 pb-3">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-300">{{ ui.public_courses }}</h2>
+    </div>
+
+    <div class="grid grid-cols-3 gap-1 sm:gap-2" data-course-feed-list {% if not courses %}hidden{% endif %}>
+      {% include "courses/_feed_profile_items.html" %}
+    </div>
+
+    <div class="ll-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
+      <h2>{{ ui.no_public_courses }}</h2>
+    </div>
+
+    <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>
+    <p data-course-feed-loading class="py-3 text-center text-sm text-slate-500" hidden>{{ ui.loading_more }}</p>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/course_feed.js' %}?v=1"></script>
+{% endblock %}

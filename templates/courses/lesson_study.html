@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ ui.study }} · {{ lesson.title }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div
+    id="study-root"
+    class="mx-auto max-w-3xl"
+    data-csrf="{{ csrf_token }}"
+    data-speech-lang="{% if ui_learning_language == 'en' %}en-US{% else %}{{ ui_learning_language }}{% endif %}"
+    {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+  >
+    {{ study_json|json_script:"study-data" }}
+
+    <div class="study-topbar mb-4 flex items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <p class="ll-eyebrow truncate" dir="ltr">{{ course.title }} · {{ section.title }}</p>
+        <h1 class="ll-title study-lesson-title" dir="ltr">{{ lesson.title }}</h1>
+      </div>
+      <a
+        id="study-exit"
+        href="{% url 'course_detail' course.pk %}"
+        class="ll-btn ll-btn-danger shrink-0 study-exit-btn"
+      >
+        {{ ui.exit_study }}
+      </a>
+    </div>
+
+    <section id="study-setup" class="ll-card p-4 sm:p-7">
+      <h2 class="ll-section-title text-xl">{{ ui.ready_to_study }}</h2>
+      <p class="mt-2 text-sm leading-6 text-slate-400" id="study-setup-lead" data-template="{{ ui.study_setup_lead }}">
+        <span id="setup-total" class="font-medium text-emerald-300">0</span>
+      </p>
+
+      <div class="mt-6 grid gap-3 sm:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.total_cards }}</p>
+          <p id="setup-total-big" class="mt-1 text-3xl font-semibold text-white">0</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.selected_session }}</p>
+          <p id="setup-selected" class="mt-1 text-3xl font-semibold text-emerald-300">0</p>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <p class="mb-3 text-sm font-medium text-slate-300">{{ ui.cards_by_level }}</p>
+        <div id="setup-level-stats" class="space-y-2"></div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <button type="button" id="setup-select-all" class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700">
+          {{ ui.select_all_levels }}
+        </button>
+        <button type="button" id="setup-clear" class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700">
+          {{ ui.clear }}
+        </button>
+      </div>
+
+      <div class="mt-8 border-t border-slate-800 pt-6">
+        <h3 class="text-base font-semibold text-white">{{ ui.lesson_study_settings }}</h3>
+        <p class="mt-1 text-xs text-slate-500">{{ ui.settings_saved_lesson_hint }}</p>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <label class="block rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
+            <span class="text-xs uppercase tracking-wide text-slate-500">{{ ui.playback_speed }}</span>
+            <div class="mt-3 flex items-center gap-3">
+              <input
+                id="setting-playback-rate"
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.05"
+                value="1"
+                class="w-full accent-emerald-500"
+              />
+              <span id="setting-playback-rate-label" class="w-12 text-end font-mono text-sm text-emerald-300">1.00×</span>
+            </div>
+          </label>
+
+          <label class="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
+            <span>
+              <span class="block text-xs uppercase tracking-wide text-slate-500">{{ ui.autoplay_on_card }}</span>
+              <span class="mt-1 block text-sm text-slate-300">{{ ui.autoplay_help }}</span>
+            </span>
+            <input
+              id="setting-autoplay"
+              type="checkbox"
+              class="h-5 w-5 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500/40"
+            />
+          </label>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            id="settings-save"
+            class="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-200"
+          >
+            {{ ui.save_settings }}
+          </button>
+          <p id="settings-status" class="text-xs text-slate-500"></p>
+        </div>
+      </div>
+
+      <div class="mt-6 grid gap-2 sm:flex sm:flex-wrap">
+        <button
+          type="button"
+          id="setup-start-all"
+          class="w-full rounded-xl bg-emerald-500 px-5 py-3.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400 sm:w-auto"
+        >
+          {{ ui.study_all_cards }}
+        </button>
+        <button
+          type="button"
+          id="setup-start-selected"
+          class="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-5 py-3.5 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+        >
+          {{ ui.study_selected_levels }}
+        </button>
+      </div>
+    </section>
+
+    <div id="study-session" class="hidden">
+      <div class="study-progress-row mb-3 flex flex-col gap-2 text-sm text-slate-400 sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+        <p id="study-progress">{{ ui.card_of }}</p>
+        <div class="h-2 w-full overflow-hidden rounded-full bg-slate-800 sm:w-56">
+          <div id="study-progress-bar" class="h-full w-0 rounded-full bg-emerald-500 transition-all duration-300"></div>
+        </div>
+      </div>
+
+      <section class="study-card-panel overflow-visible rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-[0_0_0_1px_rgba(15,23,42,0.4)] sm:rounded-3xl sm:p-8">
+        <audio id="study-audio" preload="metadata" class="hidden"></audio>
+
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.timer }}</p>
+            <p id="study-timer" class="mt-1 font-mono text-2xl font-semibold tabular-nums text-emerald-300">0.00s</p>
+          </div>
+          <div class="text-end text-xs text-slate-400">
+            <p id="study-best-record">{{ ui.best_label }}: —</p>
+            <p id="study-timer-status" class="mt-1 text-slate-500">{{ ui.waiting_play_meaning }}</p>
+          </div>
+        </div>
+
+        <div
+          id="study-card-text"
+          class="relative z-10 text-slate-100"
+          dir="ltr"
+        ></div>
+
+        <div class="study-media-actions mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap">
+          <button
+            type="button"
+            id="study-play"
+            class="col-span-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40 sm:col-auto sm:py-2.5"
+          >
+            {{ ui.play_card }}
+          </button>
+          <button
+            type="button"
+            id="study-stop"
+            class="rounded-xl bg-rose-500/15 px-4 py-3 text-sm font-medium text-rose-200 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
+            disabled
+          >
+            {{ ui.stop }}
+          </button>
+          <button
+            type="button"
+            id="study-toggle-meaning"
+            class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
+          >
+            {{ ui.show_meaning }}
+          </button>
+        </div>
+
+        <div class="mt-4 sm:mt-5">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <label class="block text-sm font-medium text-slate-300" for="study-type-input">{{ ui.type_what_you_hear }}</label>
+            <button
+              type="button"
+              id="study-speech-btn"
+              class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-emerald-500/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-pressed="false"
+              title="{{ ui.speech_start }}"
+            >
+              <span id="study-speech-icon" aria-hidden="true" class="inline-block h-2 w-2 rounded-full bg-slate-500"></span>
+              <span id="study-speech-label">{{ ui.speech_start }}</span>
+            </button>
+          </div>
+          <div class="relative">
+            <textarea
+              id="study-type-input"
+              rows="3"
+              dir="ltr"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="{{ ui.type_placeholder }}"
+              class="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-3 pe-3.5 text-base leading-7 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 sm:px-4"
+            ></textarea>
+          </div>
+          <p id="study-type-hint" class="mt-2 text-xs leading-5 text-slate-500">
+            {{ ui.type_hint }}
+          </p>
+        </div>
+
+        <div class="study-level-block mt-5 border-t border-slate-800 pt-4 sm:mt-6 sm:pt-5">
+          <div class="study-level-head">
+            <p class="study-level-title">{{ ui.your_level }}</p>
+            <p id="study-level-status" class="study-level-status"></p>
+          </div>
+          <div id="study-levels" class="study-levels" role="group" aria-label="{{ ui.your_level }}"></div>
+          <div class="study-level-ends" aria-hidden="true">
+            <span>1 · {{ ui.just_starting }}</span>
+            <span>7 · {{ ui.knows_very_well }}</span>
+          </div>
+        </div>
+
+        <div class="study-nav-actions mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+          <button
+            type="button"
+            id="study-prev"
+            class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
+          >
+            {{ ui.previous }}
+          </button>
+          <button
+            type="button"
+            id="study-next"
+            class="rounded-xl bg-emerald-500/90 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
+          >
+            {{ ui.next }}
+          </button>
+        </div>
+      </section>
+
+      <p class="mt-4 text-center text-xs text-slate-500">
+        {{ ui.study_footer_hint }}
+      </p>
+    </div>
+
+    <div
+      id="study-result-panel"
+      class="study-result-toast hidden"
+      role="status"
+      aria-live="polite"
+      {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+    >
+      <p id="study-result-main" class="font-medium"></p>
+      <p id="study-result-compare" class="mt-1"></p>
+      <p id="study-result-suggest" class="mt-2"></p>
+    </div>
+
+    <div
+      id="study-sentence-meaning"
+      class="study-meaning-toast hidden"
+      role="status"
+      aria-live="polite"
+      dir="auto"
+    ></div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/lesson_study.js' %}?v=25"></script>
+{% endblock %}

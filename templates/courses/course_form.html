@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <div class="mb-6">
+      <a href="{% if course %}{% url 'course_detail' course.pk %}{% else %}{% url 'course_list' %}{% endif %}" class="text-sm text-slate-400 hover:text-emerald-300">
+        ← {{ ui.cancel }}
+      </a>
+    </div>
+
+    <div class="mx-auto max-w-2xl ll-card p-5 sm:p-6">
+      <h1 class="ll-title mb-6" style="font-size:1.45rem">{{ page_title }}</h1>
+      <form method="post" enctype="multipart/form-data" class="space-y-5">
+        {% csrf_token %}
+        {% for field in form %}
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% if field.name == "image" and course and course.image %}
+              <span hidden data-current-image="{{ course.image.url }}"></span>
+            {% endif %}
+            <div{% if field.name == 'title' or field.name == 'description' %} dir="ltr"{% elif field.name == 'image' %} dir="ltr"{% endif %}>{{ field }}</div>
+            {% if field.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+            {% endif %}
+            {% if field.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ field.errors|striptags }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="ll-btn ll-btn-primary">
+          {{ submit_label }}
+        </button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+  <script src="{% static 'js/image_crop.js' %}?v=1"></script>
+{% endblock %}

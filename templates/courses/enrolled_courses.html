@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ ui.enrolled_courses }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div
+    class="ll-fade-in"
+    data-course-feed
+    data-endpoint="{% url 'enrolled_courses' %}"
+    data-page="{{ feed_page|default:1 }}"
+    data-has-more="{% if feed_has_more %}1{% else %}0{% endif %}"
+    data-history="0"
+    {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+  >
+    <div class="ll-page-head">
+      <div>
+        <p class="ll-eyebrow">{{ ui.learning }}</p>
+        <h1 class="ll-title">{{ ui.enrolled_courses }}</h1>
+        <p class="ll-lead">{{ ui.enrolled_lead }}</p>
+      </div>
+      <a href="{% url 'explore' %}" class="ll-btn ll-btn-ghost hidden sm:inline-flex">{{ ui.browse_explore }}</a>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3" data-course-feed-list {% if not courses %}hidden{% endif %}>
+      {% include "courses/_feed_enrolled_items.html" %}
+    </div>
+
+    <div class="ll-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
+      <h2>{{ ui.no_enrolled_yet }}</h2>
+      <p>{{ ui.go_explore_enroll }}</p>
+      <a href="{% url 'explore' %}" class="ll-btn ll-btn-primary mt-5">{{ ui.go_to_explore }}</a>
+    </div>
+
+    <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>
+    <p data-course-feed-loading class="py-3 text-center text-sm text-slate-500" hidden>{{ ui.loading_more }}</p>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/course_feed.js' %}?v=1"></script>
+{% endblock %}

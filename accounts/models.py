@@ -1,0 +1,146 @@
+from django.conf import settings
+from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from .limits import DEFAULTS
+
+
+class Profile(models.Model):
+    class Theme(models.TextChoices):
+        DARK = "dark", "Dark"
+        LIGHT = "light", "Light"
+        SYSTEM = "system", "System"
+
+    class AppLanguage(models.TextChoices):
+        EN = "en", "English"
+        FA = "fa", "Persian (فارسی)"
+
+    class LearningLanguage(models.TextChoices):
+        EN = "en", "English"
+        # Future: more target languages
+
+    SUPPORTED_APP_LANGUAGES = {AppLanguage.EN, AppLanguage.FA}
+    SUPPORTED_LEARNING_LANGUAGES = {LearningLanguage.EN}
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    display_name = models.CharField(max_length=80, blank=True)
+    bio = models.TextField(blank=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    theme = models.CharField(
+        max_length=20,
+        choices=Theme.choices,
+        default=Theme.DARK,
+    )
+    app_language = models.CharField(
+        max_length=10,
+        choices=AppLanguage.choices,
+        default=AppLanguage.EN,
+        help_text="Language of the LinguaLab interface.",
+    )
+    learning_language = models.CharField(
+        max_length=10,
+        choices=LearningLanguage.choices,
+        default=LearningLanguage.EN,
+        help_text="Language you are learning.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["display_name", "id"]
+
+    def __str__(self) -> str:
+        return self.public_name
+
+    @property
+    def public_name(self) -> str:
+        name = (self.display_name or "").strip()
+        if name:
+            return name
+        email = getattr(self.user, "email", "") or ""
+        if email:
+            return email.split("@")[0]
+        return getattr(self.user, "username", "") or f"User {self.user_id}"
+
+    def resolved_theme(self) -> str:
+        if self.theme == self.Theme.SYSTEM:
+            return self.Theme.DARK  # server-side fallback; JS refines with prefers-color-scheme
+        return self.theme
+
+
+class UserLimits(models.Model):
+    """Per-user text/upload caps. Edit in Django admin for each account."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="limits",
+    )
+    display_name_max = models.PositiveIntegerField(default=DEFAULTS["display_name_max"])
+    bio_max = models.PositiveIntegerField(default=DEFAULTS["bio_max"])
+    course_title_max = models.PositiveIntegerField(default=DEFAULTS["course_title_max"])
+    course_description_max = models.PositiveIntegerField(
+        default=DEFAULTS["course_description_max"]
+    )
+    section_title_max = models.PositiveIntegerField(default=DEFAULTS["section_title_max"])
+    section_description_max = models.PositiveIntegerField(
+        default=DEFAULTS["section_description_max"]
+    )
+    lesson_title_max = models.PositiveIntegerField(default=DEFAULTS["lesson_title_max"])
+    lesson_notes_max = models.PositiveIntegerField(default=DEFAULTS["lesson_notes_max"])
+    pasted_text_max = models.PositiveIntegerField(default=DEFAULTS["pasted_text_max"])
+    review_comment_max = models.PositiveIntegerField(default=DEFAULTS["review_comment_max"])
+    chunk_text_max = models.PositiveIntegerField(default=DEFAULTS["chunk_text_max"])
+    sentence_meaning_max = models.PositiveIntegerField(
+        default=DEFAULTS["sentence_meaning_max"]
+    )
+    highlight_meaning_max = models.PositiveIntegerField(
+        default=DEFAULTS["highlight_meaning_max"]
+    )
+    media_max_mb = models.PositiveIntegerField(
+        default=DEFAULTS["media_max_mb"],
+        help_text="Max audio/video upload size in megabytes.",
+    )
+    media_max_seconds = models.PositiveIntegerField(
+        default=DEFAULTS["media_max_seconds"],
+        help_text="Max audio/video duration in seconds (default 600 = 10 minutes).",
+    )
+    document_max_mb = models.PositiveIntegerField(
+        default=DEFAULTS["document_max_mb"],
+        help_text="Max text/PDF/Word upload size in megabytes.",
+    )
+    image_max_mb = models.PositiveIntegerField(
+        default=DEFAULTS["image_max_mb"],
+        help_text="Max course cover / avatar image size in megabytes.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "user limits"
+        verbose_name_plural = "user limits"
+
+    def __str__(self) -> str:
+        return f"Limits for {self.user_id}"
+
+
+def ensure_profile(user) -> Profile:
+    profile, _ = Profile.objects.get_or_create(user=user)
+    if not profile.display_name:
+        email = (user.email or user.username or "").strip()
+        profile.display_name = email.split("@")[0] if email else f"User {user.pk}"
+        profile.save(update_fields=["display_name", "updated_at"])
+    from .limits import ensure_user_limits
+
+    ensure_user_limits(user)
+    return profile
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def create_profile_for_user(sender, instance, created, **kwargs):
+    if created:
+        ensure_profile(instance)

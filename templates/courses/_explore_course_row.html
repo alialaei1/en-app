@@ -1,0 +1,55 @@
+<article class="ll-course-row ll-card-interactive ll-course-row-clickable">
+  <a
+    href="{% url 'course_detail' course.pk %}"
+    class="ll-course-row-stretch"
+    aria-label="{{ course.title }}"
+  ></a>
+
+  <div class="ll-media ll-course-thumb" aria-hidden="true">
+    {% if course.image %}
+      <img src="{{ course.image.url }}" alt="" loading="lazy" decoding="async" />
+    {% else %}
+      <span class="ll-media-fallback"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ ui.no_cover }}</span>
+    {% endif %}
+  </div>
+
+  <div class="ll-course-row-body">
+    <div>
+      <h3 class="line-clamp-2 text-[0.95rem] font-semibold leading-5 text-white sm:text-base sm:leading-6" dir="ltr" lang="en">
+        {{ course.title }}
+      </h3>
+      <p class="mt-1 truncate text-xs text-slate-400"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        {{ ui.by }}
+        {% if course.owner_id %}
+          <a
+            href="{% url 'public_profile' course.owner_id %}"
+            class="ll-course-row-nested font-medium text-emerald-300 hover:text-emerald-200"
+            dir="ltr"
+          >{{ course.author_name }}</a>
+        {% else %}
+          <span dir="ltr">{{ course.author_name }}</span>
+        {% endif %}
+      </p>
+      {% if course.rating_count %}
+        <p class="ll-stars mt-1">★ {{ course.rating_avg|floatformat:1 }} · {{ course.rating_count }}</p>
+      {% endif %}
+      {% if course.description %}
+        <p class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" dir="auto">{{ course.description }}</p>
+      {% endif %}
+      <p class="ll-meta mt-2"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        {{ course.section_count }} {{ ui.sec_short }}
+        {% if course.lesson_count %} · {{ course.lesson_count }} {{ ui.lessons }}{% endif %}
+        {% if course.content_kind and course.content_kind != 'general' %}
+          · {% if course.content_kind == 'podcast' %}{{ ui.filter_podcast }}
+            {% elif course.content_kind == 'video' %}{{ ui.filter_video }}
+            {% elif course.content_kind == 'writing' %}{{ ui.filter_writing }}
+            {% elif course.content_kind == 'listening' %}{{ ui.filter_listening }}
+            {% elif course.content_kind == 'reading' %}{{ ui.filter_reading }}
+            {% elif course.content_kind == 'grammar' %}{{ ui.filter_grammar }}
+            {% elif course.content_kind == 'vocab' %}{{ ui.filter_vocab }}
+            {% endif %}
+        {% endif %}
+      </p>
+    </div>
+  </div>
+</article>

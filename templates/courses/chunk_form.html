@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div
+    id="chunk-edit-root"
+    class="mx-auto max-w-3xl"
+    data-chunk-id="{{ chunk.pk }}"
+    data-save-url="{% url 'chunk_edit' chunk.pk %}"
+    data-highlight-add-url="{% url 'highlight_add' chunk.pk %}"
+    {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+  >
+    {{ chunk_json|json_script:"chunk-data" }}
+
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <a href="{% url 'lesson_detail' lesson.pk %}" class="text-sm text-slate-400 hover:text-emerald-300">
+        ← {{ ui.back_to }} <span dir="ltr">{{ lesson.title }}</span>
+      </a>
+      <p class="text-xs text-slate-500">{{ ui.saves_stay }}</p>
+    </div>
+
+    <div class="space-y-6">
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+        <p class="mb-2 text-sm text-emerald-400" dir="ltr">{{ course.title }}</p>
+        <h1 class="mb-2 text-2xl font-semibold text-white">{{ page_title }}</h1>
+        <p class="mb-5 text-sm leading-6 text-slate-400">
+          {{ ui.select_to_highlight }}
+        </p>
+
+        {% if chunk.audio %}
+          <div class="mb-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+            <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.audio_clip }}</p>
+            <audio id="chunk-audio" controls class="w-full" src="{{ chunk.audio.url }}"></audio>
+            <p class="mt-2 text-xs text-slate-500">
+              {{ ui.word_timings_ready }}:
+              <span id="word-timing-count" dir="ltr">{{ chunk.word_timings|length }}</span>
+              · {{ ui.use_play_sync }}
+            </p>
+          </div>
+        {% else %}
+          <p class="mb-5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {{ ui.no_audio_piece }}
+          </p>
+        {% endif %}
+
+        <form id="chunk-save-form" method="post" class="space-y-4">
+          {% csrf_token %}
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="id_chunk_text">{{ ui.sentence_piece_text }}</label>
+            <textarea
+              name="text"
+              id="id_chunk_text"
+              rows="4"
+              dir="ltr"
+              class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+            >{{ chunk.text }}</textarea>
+            <p class="mt-2 text-xs text-slate-500">{{ ui.editing_may_remove }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <label class="text-sm font-medium text-slate-300" for="id_sentence_meaning">{{ ui.sentence_meaning }}</label>
+              <button type="button" id="toggle-sentence-meaning" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700">
+                {% if chunk.sentence_meaning %}{{ ui.hide }}{% else %}{{ ui.add_sentence_meaning }}{% endif %}
+              </button>
+            </div>
+            <div id="sentence-meaning-wrap" class="{% if not chunk.sentence_meaning %}hidden{% endif %}">
+              <textarea
+                name="sentence_meaning"
+                id="id_sentence_meaning"
+                rows="3"
+                dir="auto"
+                placeholder="{{ ui.meaning_placeholder_sentence }}"
+                class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+              >{{ chunk.sentence_meaning }}</textarea>
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="id_display_lines">{{ ui.display_lines }}</label>
+            <input
+              type="number"
+              name="display_lines"
+              id="id_display_lines"
+              min="1"
+              max="20"
+              value="{{ chunk.display_lines|default_if_none:'' }}"
+              placeholder="e.g. 2"
+              class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+            />
+            <p class="mt-2 text-xs text-slate-500">{{ ui.display_lines_help }}</p>
+          </div>
+
+          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+            {{ ui.save_sentence }}
+          </button>
+        </form>
+      </section>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-white">{{ ui.highlight_words }}</h2>
+            <p class="mt-1 text-sm text-slate-400">{{ ui.highlight_lead }}</p>
+          </div>
+          <span id="highlight-count" class="rounded-full bg-slate-800 px-3 py-1 text-xs text-amber-300">0 {{ ui.highlights }}</span>
+        </div>
+
+        <div
+          id="highlight-source"
+          class="mb-4 min-h-28 cursor-text whitespace-pre-wrap rounded-xl border border-amber-500/30 bg-slate-950 px-4 py-4 text-base leading-8 text-slate-100 selection:bg-amber-400/40"
+          dir="ltr"
+        ></div>
+
+        <form id="highlight-form" method="post" action="{% url 'highlight_add' chunk.pk %}" class="space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="text" id="highlight-text" value="" />
+          <input type="hidden" name="start_char" id="highlight-start" value="" />
+          <input type="hidden" name="end_char" id="highlight-end" value="" />
+
+          <div class="flex flex-wrap items-center gap-3">
+            <span id="selected-preview" class="text-sm text-slate-400">{{ ui.select_word_phrase }}</span>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              id="toggle-highlight-meaning"
+              class="mb-2 text-sm text-emerald-400 hover:text-emerald-300"
+            >
+              {{ ui.add_meaning_optional }}
+            </button>
+            <div id="highlight-meaning-wrap" class="hidden">
+              <label class="mb-2 block text-sm font-medium text-slate-300" for="id_highlight_meaning">{{ ui.meaning_optional }}</label>
+              <textarea
+                name="meaning"
+                id="id_highlight_meaning"
+                rows="2"
+                dir="auto"
+                placeholder="{{ ui.meaning_placeholder_hl }}"
+                class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+              ></textarea>
+            </div>
+          </div>
+
+          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+            {{ ui.add_highlight }}
+          </button>
+        </form>
+
+        <div id="highlights-list" class="mt-6 space-y-3"></div>
+        <p id="highlights-empty" class="mt-6 text-sm text-slate-500">{{ ui.no_highlights_yet }}</p>
+      </section>
+    </div>
+  </div>
+
+  <div
+    id="toast"
+    class="pointer-events-none fixed bottom-6 left-1/2 z-[9999] hidden -translate-x-1/2 rounded-xl border px-4 py-3 text-sm shadow-xl"
+    role="status"
+  ></div>
+{% endblock %}
+
+{% block extra_js %}
+  <style>
+    #highlight-source mark.chunk-mark,
+    #highlights-list mark.chunk-mark {
+      border-radius: 0.3rem;
+      background: rgba(245, 158, 11, 0.25);
+      color: rgb(253, 230, 138);
+      padding: 0.05rem 0.2rem;
+    }
+  </style>
+  <script src="{% static 'js/chunk_edit.js' %}?v=8"></script>
+{% endblock %}

@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% load static %}
+{% load chunk_display %}
+
+{% block title %}{{ lesson.title }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div
+    id="lesson-detail-root"
+    data-status-url="{{ status_url }}"
+    data-status="{{ lesson.processing_status }}"
+    data-reorder-url="{{ reorder_url }}"
+    {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+  >
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <a href="{% url 'course_detail' course.pk %}" class="text-sm text-slate-400 hover:text-emerald-300">
+        ← {{ ui.back_to }} <span dir="ltr">{{ course.title }}</span>
+      </a>
+      {% if can_manage %}
+      <div class="flex flex-wrap gap-2">
+        <a href="{% url 'lesson_export' lesson.pk %}" class="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">{{ ui.export_text }}</a>
+        <a href="{% url 'lesson_edit' lesson.pk %}" class="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">{{ ui.edit_uploads }}</a>
+        <form id="reprocess-form" method="post" action="{% url 'lesson_reprocess' lesson.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">{{ ui.reprocess }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <section class="mb-8 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+      <p class="mb-2 text-sm text-emerald-400" dir="ltr">{{ section.title }}</p>
+      <h1 class="text-3xl font-semibold tracking-tight text-white" dir="ltr">{{ lesson.title }}</h1>
+      {% if lesson.notes %}
+        <p class="mt-3 text-slate-400" dir="auto">{{ lesson.notes }}</p>
+      {% endif %}
+      <div class="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+        <span class="rounded-full bg-slate-800 px-3 py-1">{{ ui.status_label }}:
+          {% if lesson.processing_status == 'ready' %}{{ ui.ready }}
+          {% elif lesson.processing_status == 'draft' %}{{ ui.draft }}
+          {% elif lesson.processing_status == 'processing' %}{{ ui.processing }}
+          {% elif lesson.processing_status == 'failed' %}{{ ui.failed }}
+          {% else %}{{ lesson.get_processing_status_display }}{% endif %}
+        </span>
+        <span class="rounded-full bg-slate-800 px-3 py-1">{{ chunks|length }} {% if chunks|length == 1 %}{{ ui.item }}{% else %}{{ ui.items }}{% endif %}</span>
+        {% if lesson.media_file %}<span class="rounded-full bg-slate-800 px-3 py-1">{{ ui.media_uploaded }}</span>{% endif %}
+        {% if lesson.document_file %}<span class="rounded-full bg-slate-800 px-3 py-1">{{ ui.document_uploaded }}</span>{% endif %}
+      </div>
+      {% if lesson.processing_error %}
+        <p class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" dir="auto">{{ lesson.processing_error }}</p>
+      {% endif %}
+      {% if lesson.source_audio %}
+        <div class="mt-5">
+          <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.full_lesson_audio }}</p>
+          <div
+            class="ll-audio-full"
+            dir="ltr"
+            data-audio-player="full"
+            data-src="{{ lesson.source_audio.url }}?v={{ lesson.source_audio.size }}"
+          >
+            <div class="ll-audio-times">
+              <span data-audio-current>0:00</span>
+              <span data-audio-duration>0:00</span>
+            </div>
+            <div class="ll-audio-track" data-audio-track>
+              <div class="ll-audio-fill" data-audio-fill></div>
+              <input
+                type="range"
+                class="ll-audio-seek"
+                data-audio-seek
+                min="0"
+                max="1"
+                step="any"
+                value="0"
+                aria-label="{{ ui.full_lesson_audio }}"
+              />
+            </div>
+            <div class="ll-audio-controls">
+              <button type="button" class="ll-btn ll-btn-primary" data-audio-start>{{ ui.audio_start }}</button>
+              <button type="button" class="ll-btn ll-btn-ghost" data-audio-pause disabled>{{ ui.audio_pause }}</button>
+              <button type="button" class="ll-btn ll-btn-ghost" data-audio-stop disabled>{{ ui.audio_stop }}</button>
+              <button type="button" class="ll-btn ll-btn-ghost" data-audio-back>{{ ui.audio_back_5 }}</button>
+              <button type="button" class="ll-btn ll-btn-ghost" data-audio-fwd>{{ ui.audio_fwd_5 }}</button>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    <form method="post" action="{% url 'chunk_bulk_delete' lesson.pk %}" id="chunks-form">
+      {% csrf_token %}
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-semibold text-white">{{ ui.lesson_content }}</h2>
+          {% if can_manage %}
+            <p class="mt-1 text-xs text-slate-500">{{ ui.drag_chunks }}</p>
+          {% endif %}
+        </div>
+        {% if can_manage %}
+        <button
+          type="submit"
+          class="rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/25"
+          data-confirm="{{ ui.confirm_delete_selected }}"
+        >
+          {{ ui.delete_selected }}
+        </button>
+        {% endif %}
+      </div>
+
+      {% if chunks %}
+        <div id="chunk-list" class="space-y-3">
+          {% for chunk in chunks %}
+            <article
+              class="chunk-item rounded-2xl border border-slate-800 bg-slate-900/50 p-4 transition"
+              data-chunk-id="{{ chunk.pk }}"
+            >
+              <div class="mb-3 flex flex-wrap items-start gap-3">
+                {% if can_manage %}
+                <span
+                  class="chunk-handle mt-1 inline-flex h-9 w-9 cursor-grab touch-none select-none items-center justify-center rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 active:cursor-grabbing"
+                  title="{{ ui.drag_to_reorder }}"
+                  aria-label="{{ ui.drag_to_reorder }}"
+                  role="button"
+                  tabindex="0"
+                >
+                  ⋮⋮
+                </span>
+                {% endif %}
+                <label class="flex min-w-0 flex-1 items-start gap-3">
+                  {% if can_manage %}
+                  <input type="checkbox" name="chunk_ids" value="{{ chunk.pk }}" class="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500" />
+                  {% endif %}
+                  <span class="min-w-0">
+                    <span class="chunk-index text-xs font-medium uppercase tracking-wide text-slate-500">{{ ui.item_n }} {{ forloop.counter }}</span>
+                    <p class="mt-1 text-base leading-8 text-slate-100" dir="ltr">{% render_chunk_text chunk %}</p>
+                    <div class="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                      {% if chunk.start_sec is not None and chunk.end_sec is not None %}
+                        <span dir="ltr">{{ chunk.start_sec }}s → {{ chunk.end_sec }}s</span>
+                      {% endif %}
+                      {% if chunk.sentence_meaning %}
+                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-emerald-300">{{ ui.sentence_meaning_badge }}</span>
+                      {% endif %}
+                      {% if chunk.display_lines or chunk.line_breaks %}
+                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-sky-300">
+                          {% if chunk.line_breaks %}{{ chunk.line_breaks|length|add:1 }}{% else %}{{ chunk.display_lines }}{% endif %} {{ ui.lines }}
+                        </span>
+                      {% endif %}
+                      {% if chunk.color_spans %}
+                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-violet-300">{{ chunk.color_spans|length }} {% if chunk.color_spans|length == 1 %}{{ ui.color }}{% else %}{{ ui.colors }}{% endif %}</span>
+                      {% endif %}
+                      {% if chunk.study_level %}
+                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-emerald-300">{{ ui.level_of }} {{ chunk.study_level }}/7</span>
+                      {% endif %}
+                      {% with hcount=chunk.highlights.count %}
+                        {% if hcount %}
+                          <span class="rounded-full bg-slate-800 px-2 py-0.5 text-amber-300">{{ hcount }} {% if hcount == 1 %}{{ ui.highlight }}{% else %}{{ ui.highlights }}{% endif %}</span>
+                        {% endif %}
+                      {% endwith %}
+                    </div>
+                  </span>
+                </label>
+                {% if can_manage %}
+                <div class="flex flex-wrap gap-2">
+                  <a href="{% url 'chunk_edit' chunk.pk %}" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700">{{ ui.edit }}</a>
+                  <button type="submit" formaction="{% url 'chunk_delete' chunk.pk %}" formmethod="post" class="rounded-lg bg-rose-500/15 px-3 py-1.5 text-sm text-rose-300 hover:bg-rose-500/25" data-confirm="{{ ui.confirm_delete_item }}">{{ ui.delete }}</button>
+                </div>
+                {% endif %}
+              </div>
+              {% if chunk.audio %}
+                <div
+                  class="ll-audio-simple mt-3"
+                  data-audio-player="simple"
+                  data-src="{{ chunk.audio.url }}"
+                >
+                  <button type="button" class="ll-btn ll-btn-primary" data-audio-start style="min-height:2.35rem;padding:0.45rem 0.95rem">
+                    {{ ui.audio_start }}
+                  </button>
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+        {% if can_manage %}
+        <p id="reorder-status" class="mt-3 hidden text-sm text-emerald-300"></p>
+        {% endif %}
+      {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-12 text-center">
+          <h3 class="text-lg font-semibold text-white">
+            {% if lesson.processing_status == "processing" %}
+              {{ ui.processing_content }}
+            {% else %}
+              {{ ui.no_content_yet }}
+            {% endif %}
+          </h3>
+          <p class="mt-2 text-slate-400">
+            {% if lesson.processing_status == "processing" %}
+              {{ ui.please_wait_progress }}
+            {% else %}
+              {{ ui.upload_then_process }}
+            {% endif %}
+          </p>
+          {% if can_manage and lesson.processing_status != "processing" %}
+            <a href="{% url 'lesson_edit' lesson.pk %}" class="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+              {{ ui.add_uploads }}
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </form>
+  </div>
+
+  <div
+    id="process-overlay"
+    class="fixed inset-0 z-[9999] items-center justify-center bg-slate-950/85 p-6 backdrop-blur-sm"
+    style="display: none;"
+    aria-hidden="true"
+  >
+    <div class="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+      <p id="process-title" class="text-lg font-semibold text-white">{{ ui.please_wait_overlay }}</p>
+      <p id="process-message" class="mt-2 text-sm text-slate-300">{{ ui.preparing }}</p>
+      <div class="mt-5 h-3 overflow-hidden rounded-full bg-slate-800">
+        <div id="process-bar" class="h-full w-0 rounded-full bg-emerald-500 transition-all duration-200"></div>
+      </div>
+      <div class="mt-3 flex items-center justify-between text-sm">
+        <span id="process-percent" class="font-medium text-emerald-300">0%</span>
+        <span id="process-remaining" class="text-slate-400">100% {{ ui.remaining_pct }}</span>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <style>
+    .chunk-dragging {
+      opacity: 0.95;
+      border-color: rgb(16 185 129) !important;
+      background: rgba(15, 23, 42, 0.95);
+    }
+    .ll-audio-full {
+      display: grid;
+      gap: 0.7rem;
+      padding: 0.9rem;
+      border-radius: 1rem;
+      border: 1px solid var(--ll-border, rgba(148, 163, 184, 0.18));
+      background: var(--ll-surface-2, rgba(24, 42, 61, 0.7));
+    }
+    .ll-audio-times {
+      display: flex;
+      justify-content: space-between;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      color: var(--ll-muted, #8fa3b8);
+    }
+    .ll-audio-track {
+      position: relative;
+      height: 1.1rem;
+      display: grid;
+      align-items: center;
+      cursor: pointer;
+    }
+    .ll-audio-track::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      height: 0.35rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--ll-muted, #8fa3b8) 35%, transparent);
+    }
+    .ll-audio-fill {
+      position: absolute;
+      inset-inline-start: 0;
+      height: 0.35rem;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--ll-accent, #2ec4a0);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .ll-audio-seek {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      margin: 0;
+      appearance: none;
+      background: transparent;
+      height: 1.1rem;
+      cursor: pointer;
+      accent-color: var(--ll-accent, #2ec4a0);
+    }
+    .ll-audio-seek::-webkit-slider-runnable-track {
+      height: 0.35rem;
+      background: transparent;
+      border-radius: 999px;
+    }
+    .ll-audio-seek::-webkit-slider-thumb {
+      appearance: none;
+      width: 0.95rem;
+      height: 0.95rem;
+      margin-top: -0.3rem;
+      border-radius: 999px;
+      background: var(--ll-accent-bright, #5eead4);
+      border: 2px solid var(--ll-bg-elevated, #0c1522);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ll-accent, #2ec4a0) 50%, transparent);
+    }
+    .ll-audio-seek::-moz-range-track {
+      height: 0.35rem;
+      background: transparent;
+      border-radius: 999px;
+    }
+    .ll-audio-seek::-moz-range-thumb {
+      width: 0.95rem;
+      height: 0.95rem;
+      border-radius: 999px;
+      background: var(--ll-accent-bright, #5eead4);
+      border: 2px solid var(--ll-bg-elevated, #0c1522);
+    }
+    .ll-audio-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+    .ll-audio-controls .ll-btn {
+      min-height: 2.35rem;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.82rem;
+    }
+    .ll-audio-simple .ll-btn.is-playing {
+      background: var(--ll-surface-2, #182a3d);
+      color: var(--ll-accent, #2ec4a0);
+      border: 1px solid color-mix(in srgb, var(--ll-accent, #2ec4a0) 40%, transparent);
+    }
+    .ll-audio-full audio,
+    .ll-audio-simple audio {
+      display: none !important;
+    }
+  </style>
+  <script src="{% static 'js/secure_audio.js' %}?v=3"></script>
+  <script src="{% static 'js/lesson_detail.js' %}?v=6"></script>
+{% endblock %}

@@ -1,0 +1,17 @@
+# Example import with highlights, colors, meanings, and display lines
+# Blank line = new piece. Markup is removed for audio sync.
+
+Hi, this is [[AJ Hoge|اِی‌جی هوگ]], Director of the [[Effortless English Club]]. Welcome to our new set of lessons, these are called the {{amber|Power English}} Lessons.
+@= سلام، من اِی‌جی هوگ هستم. به درس‌های پاور اینگلیش خوش آمدید.
+@lines 2
+
+The reason they’re called Power English is because in these lessons we’re going to do two things. |
+Number one, you’re going to learn [[English]], of course.
+@= دلیل نام پاور اینگلیش این است که در این درس‌ها دو کار می‌کنیم.
+
+Psychology is [[80% of success|۸۰٪ موفقیت]]. And I think he’s {{red|right}}, based on my experience with many English students.
+@= روانشناسی ۸۰ درصد موفقیت است.
+@lines 2
+
+You need to engage your [[physiology|فیزیولوژی / بدن]]. That means you need to engage and use your {{sky|body}}.
+@= باید فیزیولوژی‌تان را درگیر کنید؛ یعنی از بدنتان استفاده کنید.

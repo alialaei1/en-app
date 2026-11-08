@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ ui.your_profile }} · LinguaLab{% endblock %}
+
+{% block content %}
+  <div class="mx-auto max-w-lg ll-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <p class="ll-eyebrow">{{ ui.profile }}</p>
+    <h1 class="ll-title">{{ ui.your_profile }}</h1>
+    <p class="ll-lead">{{ ui.profile_lead }}</p>
+
+    <div class="ll-card mt-6 p-5 sm:p-6">
+      <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.signed_in_as }}</p>
+      <p class="mt-1 text-lg font-medium text-white" dir="ltr">{{ user.email }}</p>
+
+      <form method="post" enctype="multipart/form-data" class="mt-6 space-y-6" id="account-form">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+
+        <section class="space-y-5">
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ ui.account_section_profile }}</h2>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
+            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.display_name }}</div>
+            {% if form.display_name.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.display_name.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
+            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.bio }}</div>
+            {% if form.bio.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.bio.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.avatar.id_for_label }}">{{ form.avatar.label }}</label>
+            {% if profile.avatar %}
+              <span hidden data-current-image="{{ profile.avatar.url }}"></span>
+            {% endif %}
+            <div dir="ltr">{{ form.avatar }}</div>
+            {% if form.avatar.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ form.avatar.help_text }}</p>
+            {% endif %}
+            {% if form.avatar.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.avatar.errors|striptags }}</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="space-y-5 border-t border-slate-800 pt-6">
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ ui.account_section_prefs }}</h2>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.theme.id_for_label }}">{{ form.theme.label }}</label>
+            <div dir="ltr">{{ form.theme }}</div>
+            {% if form.theme.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ form.theme.help_text }}</p>
+            {% endif %}
+            {% if form.theme.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.theme.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.app_language.id_for_label }}">{{ form.app_language.label }}</label>
+            <div dir="ltr">{{ form.app_language }}</div>
+            {% if form.app_language.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ form.app_language.help_text }}</p>
+            {% endif %}
+            {% if form.app_language.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.app_language.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.learning_language.id_for_label }}">{{ form.learning_language.label }}</label>
+            <div dir="ltr">{{ form.learning_language }}</div>
+            {% if form.learning_language.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ form.learning_language.help_text }}</p>
+            {% endif %}
+            {% if form.learning_language.errors %}
+              <p class="mt-2 text-sm text-rose-300">{{ form.learning_language.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <p class="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-100">
+            {{ supported_note }}
+          </p>
+        </section>
+
+        <div class="ll-actions">
+          <button type="submit" class="ll-btn ll-btn-primary">{{ ui.save_profile }}</button>
+          <a href="{% url 'public_profile' user.id %}" class="ll-btn ll-btn-ghost">{{ ui.view_public_profile }}</a>
+        </div>
+      </form>
+
+      <form method="post" action="{% url 'logout' %}" class="mt-4 border-t border-slate-800 pt-4">
+        {% csrf_token %}
+        <button type="submit" class="ll-btn ll-btn-danger w-full">{{ ui.log_out }}</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+  <script src="{% static 'js/image_crop.js' %}?v=1"></script>
+  <script>
+    (function () {
+      const themeSelect = document.getElementById("id_theme");
+      if (!themeSelect) return;
+      themeSelect.addEventListener("change", () => {
+        const value = themeSelect.value;
+        const root = document.documentElement;
+        root.dataset.themePref = value;
+        if (value === "system") {
+          const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = dark ? "dark" : "light";
+        } else {
+          root.dataset.theme = value;
+        }
+      });
+    })();
+  </script>
+{% endblock %}

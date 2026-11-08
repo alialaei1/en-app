@@ -1,0 +1,38 @@
+{% for course in courses %}
+  <article class="ll-course-row">
+    <a href="{% url 'course_detail' course.pk %}" class="ll-media ll-course-thumb" aria-label="{{ course.title }}">
+      {% if course.image %}
+        <img src="{{ course.image.url }}" alt="" loading="lazy" decoding="async" />
+      {% else %}
+        <span class="ll-media-fallback">{{ ui.no_image }}</span>
+      {% endif %}
+    </a>
+    <div class="ll-course-row-body">
+      <div>
+        <a href="{% url 'course_detail' course.pk %}" class="text-base font-semibold text-white hover:text-emerald-300 sm:text-lg" dir="ltr" lang="en">
+          {{ course.title }}
+        </a>
+        {% if course.description %}
+          <p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-400" dir="auto">{{ course.description }}</p>
+        {% endif %}
+        <p class="ll-meta mt-2">
+          {{ course.section_count }} {{ ui.sections_n }}
+          ·
+          {% if course.is_public %}
+            <span class="text-emerald-400">{{ ui.public }}</span>
+          {% else %}
+            <span class="text-amber-300">{{ ui.private }}</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="ll-actions">
+        <a href="{% url 'course_detail' course.pk %}" class="ll-btn ll-btn-primary" style="min-height:2.25rem;padding:0.4rem 0.8rem;font-size:0.78rem">{{ ui.open }}</a>
+        <a href="{% url 'course_edit' course.pk %}" class="ll-btn ll-btn-ghost" style="min-height:2.25rem;padding:0.4rem 0.8rem;font-size:0.78rem">{{ ui.edit }}</a>
+        <form method="post" action="{% url 'course_delete' course.pk %}" data-confirm="{{ ui.confirm_delete_course }}">
+          {% csrf_token %}
+          <button type="submit" class="ll-btn ll-btn-danger" style="min-height:2.25rem;padding:0.4rem 0.8rem;font-size:0.78rem">{{ ui.delete }}</button>
+        </form>
+      </div>
+    </div>
+  </article>
+{% endfor %}
