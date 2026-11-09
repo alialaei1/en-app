@@ -1,9 +1,9 @@
 from .models import Profile, ensure_profile
 from .ui_i18n import ui_bundle
 
-THEME_COOKIE = "ll_theme"
-APP_LANG_COOKIE = "ll_app_lang"
-LEARN_LANG_COOKIE = "ll_learn_lang"
+THEME_COOKIE = "mv_theme"
+APP_LANG_COOKIE = "mv_app_lang"
+LEARN_LANG_COOKIE = "mv_learn_lang"
 
 
 def user_preferences(request):
