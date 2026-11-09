@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ ui.explore }} · mimivo{% endblock %}
+{% block title %}{{ ui.explore }} · Mimivo{% endblock %}
 
 {% block content %}
   <div
-    class="ll-fade-in"
+    class="mv-fade-in"
     data-course-feed
     data-endpoint="{% url 'explore' %}"
     data-page="{{ feed_page|default:1 }}"
@@ -16,17 +16,17 @@
     data-history="1"
     {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
   >
-    <div class="ll-page-head">
+    <div class="mv-page-head">
       <div>
-        <p class="ll-eyebrow">{{ ui.explore }}</p>
-        <h1 class="ll-title">{{ ui.explore_title }}</h1>
+        <p class="mv-eyebrow">{{ ui.explore }}</p>
+        <h1 class="mv-title">{{ ui.explore_title }}</h1>
       </div>
       {% if user.is_authenticated %}
-        <a href="{% url 'course_create' %}" class="ll-btn ll-btn-primary hidden sm:inline-flex">{{ ui.new_course }}</a>
+        <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary hidden sm:inline-flex">{{ ui.new_course }}</a>
       {% endif %}
     </div>
 
-    <form method="get" action="{% url 'explore' %}" class="ll-search mb-4" data-course-feed-search>
+    <form method="get" action="{% url 'explore' %}" class="mv-search mb-4" data-course-feed-search>
       <input type="hidden" name="f" value="{{ active_filter }}" {% if not active_filter or active_filter == 'suggested' %}disabled{% endif %} />
       <label class="sr-only" for="explore-search">{{ ui.search }}</label>
       <input
@@ -37,10 +37,10 @@
         placeholder="{{ ui.search_placeholder }}"
         {% if ui_rtl %}dir="rtl"{% endif %}
       />
-      <button type="submit" class="ll-btn ll-btn-ghost shrink-0">{{ ui.search }}</button>
+      <button type="submit" class="mv-btn mv-btn-ghost shrink-0">{{ ui.search }}</button>
       <a
         href="{% url 'explore' %}{% if active_filter and active_filter != 'suggested' %}?f={{ active_filter }}{% endif %}"
-        class="ll-btn ll-btn-ghost shrink-0"
+        class="mv-btn mv-btn-ghost shrink-0"
         data-course-feed-clear
         {% if not query %}hidden{% endif %}
       >{{ ui.clear }}</a>
@@ -48,21 +48,21 @@
 
     <div class="mb-5">
       <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ ui.explore_all_filters }}</p>
-      <div class="ll-chip-scroller" data-chip-scroller>
+      <div class="mv-chip-scroller" data-chip-scroller>
         <button
           type="button"
-          class="ll-chip-arrow is-start"
+          class="mv-chip-arrow is-start"
           data-chip-prev
           aria-label="{{ ui.filter_scroll_prev }}"
           hidden
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 6 9 12l6 6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <div class="ll-chip-row" data-chip-track tabindex="0" role="list">
+        <div class="mv-chip-row" data-chip-track tabindex="0" role="list">
           {% for item in explore_filters %}
             <a
               href="{% url 'explore' %}?f={{ item.key }}{% if query %}&q={{ query|urlencode }}{% endif %}"
-              class="ll-chip{% if item.key == active_filter %} is-active{% endif %}"
+              class="mv-chip{% if item.key == active_filter %} is-active{% endif %}"
               role="listitem"
               data-course-feed-filter="{{ item.key }}"
             >{{ item.label }}</a>
@@ -70,7 +70,7 @@
         </div>
         <button
           type="button"
-          class="ll-chip-arrow is-end"
+          class="mv-chip-arrow is-end"
           data-chip-next
           aria-label="{{ ui.filter_scroll_next }}"
           hidden
@@ -81,10 +81,10 @@
     </div>
 
     <div class="mb-3 flex items-baseline justify-between gap-3">
-      <h2 class="ll-section-title" data-course-feed-title>
+      <h2 class="mv-section-title" data-course-feed-title>
         {% if query %}{{ ui.search_results }} · {{ filter_label }}{% else %}{{ filter_label }}{% endif %}
       </h2>
-      <p class="ll-meta" data-course-feed-meta {% if not query %}hidden{% endif %}>
+      <p class="mv-meta" data-course-feed-meta {% if not query %}hidden{% endif %}>
         {% if query %}{{ result_count }} {{ ui.results_for }} “{{ query }}”{% endif %}
       </p>
     </div>
@@ -93,7 +93,7 @@
       {% include "courses/_feed_explore_items.html" %}
     </div>
 
-    <div class="ll-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
+    <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
       <div data-empty-with-query {% if not query %}hidden{% endif %}>
         <h2>{{ ui.no_match }} “<span data-empty-query>{{ query }}</span>”.</h2>
       </div>
@@ -102,9 +102,9 @@
         <p>{{ ui.be_first_publish }}</p>
       </div>
       {% if user.is_authenticated %}
-        <a href="{% url 'course_create' %}" class="ll-btn ll-btn-primary mt-5">{{ ui.create_course }}</a>
+        <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.create_course }}</a>
       {% else %}
-        <a href="{% url 'signup' %}" class="ll-btn ll-btn-primary mt-5">{{ ui.signup_to_create }}</a>
+        <a href="{% url 'signup' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.signup_to_create }}</a>
       {% endif %}
     </div>
 

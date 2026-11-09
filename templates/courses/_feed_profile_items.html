@@ -1,14 +1,14 @@
 {% for course in courses %}
   <a
     href="{% url 'course_detail' course.pk %}"
-    class="ll-media ll-course-cover-square group rounded-lg sm:rounded-xl"
+    class="mv-media mv-course-cover-square group rounded-lg sm:rounded-xl"
     title="{{ course.title }}"
     aria-label="{{ course.title }}"
   >
     {% if course.image %}
       <img src="{{ course.image.url }}" alt="" loading="lazy" decoding="async" />
     {% else %}
-      <span class="ll-media-fallback text-[10px] sm:text-xs" dir="ltr">{{ course.title|truncatechars:36 }}</span>
+      <span class="mv-media-fallback text-[10px] sm:text-xs" dir="ltr">{{ course.title|truncatechars:36 }}</span>
     {% endif %}
     <span class="pointer-events-none absolute inset-0 bg-slate-950/0 transition group-hover:bg-slate-950/45"></span>
     <span class="pointer-events-none absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-slate-950/85 to-transparent p-2 group-hover:block">

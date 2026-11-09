@@ -509,7 +509,7 @@ def export_lesson_document(chunks, *, title: str = "") -> str:
     lines: list[str] = []
     if title:
         lines.append(f"# {title}")
-        lines.append("# Exported from mimivo — re-importable markup")
+        lines.append("# Exported from Mimivo — re-importable markup")
         lines.append("")
 
     pieces: list[str] = []

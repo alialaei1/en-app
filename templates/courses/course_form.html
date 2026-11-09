@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ page_title }} · mimivo{% endblock %}
+{% block title %}{{ page_title }} · Mimivo{% endblock %}
 
 {% block content %}
   <div{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
@@ -11,8 +11,8 @@
       </a>
     </div>
 
-    <div class="mx-auto max-w-2xl ll-card p-5 sm:p-6">
-      <h1 class="ll-title mb-6" style="font-size:1.45rem">{{ page_title }}</h1>
+    <div class="mx-auto max-w-2xl mv-card p-5 sm:p-6">
+      <h1 class="mv-title mb-6" style="font-size:1.45rem">{{ page_title }}</h1>
       <form method="post" enctype="multipart/form-data" class="space-y-5">
         {% csrf_token %}
         {% for field in form %}
@@ -30,7 +30,7 @@
             {% endif %}
           </div>
         {% endfor %}
-        <button type="submit" class="ll-btn ll-btn-primary">
+        <button type="submit" class="mv-btn mv-btn-primary">
           {{ submit_label }}
         </button>
       </form>

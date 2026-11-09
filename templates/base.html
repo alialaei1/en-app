@@ -14,9 +14,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="mimivo" />
-    <meta name="application-name" content="mimivo" />
-    <title>{% block title %}mimivo{% endblock %}</title>
+    <meta name="apple-mobile-web-app-title" content="Mimivo" />
+    <meta name="application-name" content="Mimivo" />
+    <title>{% block title %}Mimivo{% endblock %}</title>
     <link rel="manifest" href="{% url 'pwa_manifest' %}" />
     <link rel="apple-touch-icon" href="{% static 'pwa/icons/apple-touch-icon.png' %}" />
     <link rel="icon" type="image/png" sizes="192x192" href="{% static 'pwa/icons/icon-192.png' %}" />
@@ -36,89 +36,89 @@
       })();
     </script>
   </head>
-  <body class="ll-body antialiased">
+  <body class="mv-body antialiased">
     {{ ui|json_script:"ui-i18n" }}
     {% with url_name=request.resolver_match.url_name|default:'' %}
-    <div class="ll-shell{% if url_name == 'lesson_study' %} ll-focus-mode{% endif %}">
-      <header class="ll-header">
-        <div class="ll-header-inner">
-          <a href="{% url 'explore' %}" class="ll-brand">
-            <span class="ll-brand-mark">LL</span>
+    <div class="mv-shell{% if url_name == 'lesson_study' %} mv-focus-mode{% endif %}">
+      <header class="mv-header">
+        <div class="mv-header-inner">
+          <a href="{% url 'explore' %}" class="mv-brand">
+            <span class="mv-brand-mark">LL</span>
             <span class="min-w-0">
-              <span class="ll-brand-title">mimivo</span>
-              <span class="ll-brand-sub">{{ ui.tagline }}</span>
+              <span class="mv-brand-title">Mimivo</span>
+              <span class="mv-brand-sub">{{ ui.tagline }}</span>
             </span>
           </a>
 
-          <nav class="ll-desktop-nav" aria-label="Main">
-            <a href="{% url 'explore' %}" class="ll-desk-link{% if url_name == 'explore' %} is-active{% endif %}">{{ ui.explore }}</a>
+          <nav class="mv-desktop-nav" aria-label="Main">
+            <a href="{% url 'explore' %}" class="mv-desk-link{% if url_name == 'explore' %} is-active{% endif %}">{{ ui.explore }}</a>
             {% if user.is_authenticated %}
-              <a href="{% url 'enrolled_courses' %}" class="ll-desk-link{% if url_name == 'enrolled_courses' %} is-active{% endif %}">{{ ui.enrolled }}</a>
-              <a href="{% url 'course_list' %}" class="ll-desk-link{% if url_name == 'course_list' %} is-active{% endif %}">{{ ui.my_courses }}</a>
-              <a href="{% url 'course_create' %}" class="ll-desk-link ll-desk-cta">{{ ui.new_course }}</a>
-              <a href="{% url 'account' %}" class="ll-desk-link{% if url_name == 'account' or url_name == 'settings' or url_name == 'public_profile' %} is-active{% endif %}">{{ ui.profile }}</a>
+              <a href="{% url 'enrolled_courses' %}" class="mv-desk-link{% if url_name == 'enrolled_courses' %} is-active{% endif %}">{{ ui.enrolled }}</a>
+              <a href="{% url 'course_list' %}" class="mv-desk-link{% if url_name == 'course_list' %} is-active{% endif %}">{{ ui.my_courses }}</a>
+              <a href="{% url 'course_create' %}" class="mv-desk-link mv-desk-cta">{{ ui.new_course }}</a>
+              <a href="{% url 'account' %}" class="mv-desk-link{% if url_name == 'account' or url_name == 'settings' or url_name == 'public_profile' %} is-active{% endif %}">{{ ui.profile }}</a>
               <form method="post" action="{% url 'logout' %}" class="inline">
                 {% csrf_token %}
-                <button type="submit" class="ll-desk-link" style="background:transparent;border:0;cursor:pointer">{{ ui.log_out }}</button>
+                <button type="submit" class="mv-desk-link" style="background:transparent;border:0;cursor:pointer">{{ ui.log_out }}</button>
               </form>
             {% else %}
-              <a href="{% url 'login' %}" class="ll-desk-link">{{ ui.log_in }}</a>
-              <a href="{% url 'signup' %}" class="ll-desk-link ll-desk-cta">{{ ui.sign_up }}</a>
+              <a href="{% url 'login' %}" class="mv-desk-link">{{ ui.log_in }}</a>
+              <a href="{% url 'signup' %}" class="mv-desk-link mv-desk-cta">{{ ui.sign_up }}</a>
             {% endif %}
           </nav>
 
-          <div class="ll-header-actions md:hidden">
+          <div class="mv-header-actions md:hidden">
             {% if user.is_authenticated %}
-              <a href="{% url 'course_create' %}" class="ll-icon-btn" aria-label="{{ ui.new_course }}" title="{{ ui.new_course }}">
+              <a href="{% url 'course_create' %}" class="mv-icon-btn" aria-label="{{ ui.new_course }}" title="{{ ui.new_course }}">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
               </a>
-              <a href="{% url 'account' %}" class="ll-icon-btn" aria-label="{{ ui.profile }}" title="{{ ui.profile }}">
+              <a href="{% url 'account' %}" class="mv-icon-btn" aria-label="{{ ui.profile }}" title="{{ ui.profile }}">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg>
               </a>
             {% else %}
-              <a href="{% url 'login' %}" class="ll-btn ll-btn-ghost" style="min-height:2.5rem;padding:0.45rem 0.85rem">{{ ui.log_in }}</a>
+              <a href="{% url 'login' %}" class="mv-btn mv-btn-ghost" style="min-height:2.5rem;padding:0.45rem 0.85rem">{{ ui.log_in }}</a>
             {% endif %}
           </div>
         </div>
       </header>
 
       {% if messages %}
-        <div class="ll-messages">
+        <div class="mv-messages">
           {% for message in messages %}
-            <div class="ll-toast"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ message }}</div>
+            <div class="mv-toast"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ message }}</div>
           {% endfor %}
         </div>
       {% endif %}
 
-      <main class="ll-main">
+      <main class="mv-main">
         {% block content %}{% endblock %}
       </main>
 
-      <nav class="ll-bottom-nav" aria-label="App">
-        <div class="ll-bottom-nav-inner{% if not user.is_authenticated %} is-guest{% endif %}">
-          <a href="{% url 'explore' %}" class="ll-nav-item{% if url_name == 'explore' %} is-active{% endif %}">
+      <nav class="mv-bottom-nav" aria-label="App">
+        <div class="mv-bottom-nav-inner{% if not user.is_authenticated %} is-guest{% endif %}">
+          <a href="{% url 'explore' %}" class="mv-nav-item{% if url_name == 'explore' %} is-active{% endif %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
             <span>{{ ui.explore }}</span>
           </a>
           {% if user.is_authenticated %}
-            <a href="{% url 'enrolled_courses' %}" class="ll-nav-item{% if url_name == 'enrolled_courses' %} is-active{% endif %}">
+            <a href="{% url 'enrolled_courses' %}" class="mv-nav-item{% if url_name == 'enrolled_courses' %} is-active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
               <span>{{ ui.enrolled }}</span>
             </a>
-            <a href="{% url 'course_list' %}" class="ll-nav-item{% if url_name == 'course_list' or url_name == 'course_create' %} is-active{% endif %}">
+            <a href="{% url 'course_list' %}" class="mv-nav-item{% if url_name == 'course_list' or url_name == 'course_create' %} is-active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18M3 12h18M3 17h18" stroke-linecap="round"/></svg>
               <span>{{ ui.my_courses }}</span>
             </a>
-            <a href="{% url 'account' %}" class="ll-nav-item{% if url_name == 'account' or url_name == 'settings' or url_name == 'public_profile' %} is-active{% endif %}">
+            <a href="{% url 'account' %}" class="mv-nav-item{% if url_name == 'account' or url_name == 'settings' or url_name == 'public_profile' %} is-active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg>
               <span>{{ ui.profile }}</span>
             </a>
           {% else %}
-            <a href="{% url 'login' %}" class="ll-nav-item{% if url_name == 'login' %} is-active{% endif %}">
+            <a href="{% url 'login' %}" class="mv-nav-item{% if url_name == 'login' %} is-active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 3v18"/></svg>
               <span>{{ ui.log_in }}</span>
             </a>
-            <a href="{% url 'signup' %}" class="ll-nav-item{% if url_name == 'signup' %} is-active{% endif %}">
+            <a href="{% url 'signup' %}" class="mv-nav-item{% if url_name == 'signup' %} is-active{% endif %}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/><path d="M19 8v6M16 11h6" stroke-linecap="round"/></svg>
               <span>{{ ui.sign_up }}</span>
             </a>
@@ -129,21 +129,21 @@
     {% endwith %}
 
     <div
-      id="ll-confirm-modal"
-      class="ll-confirm-modal hidden"
+      id="mv-confirm-modal"
+      class="mv-confirm-modal hidden"
       role="alertdialog"
       aria-modal="true"
-      aria-labelledby="ll-confirm-title"
-      aria-describedby="ll-confirm-message"
+      aria-labelledby="mv-confirm-title"
+      aria-describedby="mv-confirm-message"
       hidden
     >
-      <button type="button" class="ll-confirm-backdrop" data-ll-confirm-close aria-label="{{ ui.cancel }}"></button>
-      <div class="ll-confirm-panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-        <h2 id="ll-confirm-title" class="ll-confirm-title">{{ ui.confirm_title }}</h2>
-        <p id="ll-confirm-message" class="ll-confirm-message"></p>
-        <div class="ll-confirm-actions">
-          <button type="button" id="ll-confirm-no" class="ll-btn ll-btn-ghost">{{ ui.cancel }}</button>
-          <button type="button" id="ll-confirm-yes" class="ll-btn ll-btn-danger">{{ ui.confirm_yes }}</button>
+      <button type="button" class="mv-confirm-backdrop" data-mv-confirm-close aria-label="{{ ui.cancel }}"></button>
+      <div class="mv-confirm-panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <h2 id="mv-confirm-title" class="mv-confirm-title">{{ ui.confirm_title }}</h2>
+        <p id="mv-confirm-message" class="mv-confirm-message"></p>
+        <div class="mv-confirm-actions">
+          <button type="button" id="mv-confirm-no" class="mv-btn mv-btn-ghost">{{ ui.cancel }}</button>
+          <button type="button" id="mv-confirm-yes" class="mv-btn mv-btn-danger">{{ ui.confirm_yes }}</button>
         </div>
       </div>
     </div>

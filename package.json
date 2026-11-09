@@ -1,5 +1,5 @@
 {
-  "name": "mimivo",
+  "name": "Mimivo",
   "version": "1.0.0",
   "description": "Standalone Django project with `.env`-based settings.",
   "main": "index.js",

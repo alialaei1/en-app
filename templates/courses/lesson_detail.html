@@ -2,7 +2,7 @@
 {% load static %}
 {% load chunk_display %}
 
-{% block title %}{{ lesson.title }} · mimivo{% endblock %}
+{% block title %}{{ lesson.title }} · Mimivo{% endblock %}
 
 {% block content %}
   <div
@@ -53,20 +53,20 @@
         <div class="mt-5">
           <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.full_lesson_audio }}</p>
           <div
-            class="ll-audio-full"
+            class="mv-audio-full"
             dir="ltr"
             data-audio-player="full"
             data-src="{{ lesson.source_audio.url }}?v={{ lesson.source_audio.size }}"
           >
-            <div class="ll-audio-times">
+            <div class="mv-audio-times">
               <span data-audio-current>0:00</span>
               <span data-audio-duration>0:00</span>
             </div>
-            <div class="ll-audio-track" data-audio-track>
-              <div class="ll-audio-fill" data-audio-fill></div>
+            <div class="mv-audio-track" data-audio-track>
+              <div class="mv-audio-fill" data-audio-fill></div>
               <input
                 type="range"
-                class="ll-audio-seek"
+                class="mv-audio-seek"
                 data-audio-seek
                 min="0"
                 max="1"
@@ -75,12 +75,12 @@
                 aria-label="{{ ui.full_lesson_audio }}"
               />
             </div>
-            <div class="ll-audio-controls">
-              <button type="button" class="ll-btn ll-btn-primary" data-audio-start>{{ ui.audio_start }}</button>
-              <button type="button" class="ll-btn ll-btn-ghost" data-audio-pause disabled>{{ ui.audio_pause }}</button>
-              <button type="button" class="ll-btn ll-btn-ghost" data-audio-stop disabled>{{ ui.audio_stop }}</button>
-              <button type="button" class="ll-btn ll-btn-ghost" data-audio-back>{{ ui.audio_back_5 }}</button>
-              <button type="button" class="ll-btn ll-btn-ghost" data-audio-fwd>{{ ui.audio_fwd_5 }}</button>
+            <div class="mv-audio-controls">
+              <button type="button" class="mv-btn mv-btn-primary" data-audio-start>{{ ui.audio_start }}</button>
+              <button type="button" class="mv-btn mv-btn-ghost" data-audio-pause disabled>{{ ui.audio_pause }}</button>
+              <button type="button" class="mv-btn mv-btn-ghost" data-audio-stop disabled>{{ ui.audio_stop }}</button>
+              <button type="button" class="mv-btn mv-btn-ghost" data-audio-back>{{ ui.audio_back_5 }}</button>
+              <button type="button" class="mv-btn mv-btn-ghost" data-audio-fwd>{{ ui.audio_fwd_5 }}</button>
             </div>
           </div>
         </div>
@@ -168,11 +168,11 @@
               </div>
               {% if chunk.audio %}
                 <div
-                  class="ll-audio-simple mt-3"
+                  class="mv-audio-simple mt-3"
                   data-audio-player="simple"
                   data-src="{{ chunk.audio.url }}"
                 >
-                  <button type="button" class="ll-btn ll-btn-primary" data-audio-start style="min-height:2.35rem;padding:0.45rem 0.95rem">
+                  <button type="button" class="mv-btn mv-btn-primary" data-audio-start style="min-height:2.35rem;padding:0.45rem 0.95rem">
                     {{ ui.audio_start }}
                   </button>
                 </div>
@@ -236,47 +236,47 @@
       border-color: rgb(16 185 129) !important;
       background: rgba(15, 23, 42, 0.95);
     }
-    .ll-audio-full {
+    .mv-audio-full {
       display: grid;
       gap: 0.7rem;
       padding: 0.9rem;
       border-radius: 1rem;
-      border: 1px solid var(--ll-border, rgba(148, 163, 184, 0.18));
-      background: var(--ll-surface-2, rgba(24, 42, 61, 0.7));
+      border: 1px solid var(--mv-border, rgba(148, 163, 184, 0.18));
+      background: var(--mv-surface-2, rgba(24, 42, 61, 0.7));
     }
-    .ll-audio-times {
+    .mv-audio-times {
       display: flex;
       justify-content: space-between;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.78rem;
-      color: var(--ll-muted, #8fa3b8);
+      color: var(--mv-muted, #8fa3b8);
     }
-    .ll-audio-track {
+    .mv-audio-track {
       position: relative;
       height: 1.1rem;
       display: grid;
       align-items: center;
       cursor: pointer;
     }
-    .ll-audio-track::before {
+    .mv-audio-track::before {
       content: "";
       position: absolute;
       inset-inline: 0;
       height: 0.35rem;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--ll-muted, #8fa3b8) 35%, transparent);
+      background: color-mix(in srgb, var(--mv-muted, #8fa3b8) 35%, transparent);
     }
-    .ll-audio-fill {
+    .mv-audio-fill {
       position: absolute;
       inset-inline-start: 0;
       height: 0.35rem;
       width: 0%;
       border-radius: 999px;
-      background: var(--ll-accent, #2ec4a0);
+      background: var(--mv-accent, #2ec4a0);
       pointer-events: none;
       z-index: 1;
     }
-    .ll-audio-seek {
+    .mv-audio-seek {
       position: relative;
       z-index: 2;
       width: 100%;
@@ -285,52 +285,52 @@
       background: transparent;
       height: 1.1rem;
       cursor: pointer;
-      accent-color: var(--ll-accent, #2ec4a0);
+      accent-color: var(--mv-accent, #2ec4a0);
     }
-    .ll-audio-seek::-webkit-slider-runnable-track {
+    .mv-audio-seek::-webkit-slider-runnable-track {
       height: 0.35rem;
       background: transparent;
       border-radius: 999px;
     }
-    .ll-audio-seek::-webkit-slider-thumb {
+    .mv-audio-seek::-webkit-slider-thumb {
       appearance: none;
       width: 0.95rem;
       height: 0.95rem;
       margin-top: -0.3rem;
       border-radius: 999px;
-      background: var(--ll-accent-bright, #5eead4);
-      border: 2px solid var(--ll-bg-elevated, #0c1522);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ll-accent, #2ec4a0) 50%, transparent);
+      background: var(--mv-accent-bright, #5eead4);
+      border: 2px solid var(--mv-bg-elevated, #0c1522);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--mv-accent, #2ec4a0) 50%, transparent);
     }
-    .ll-audio-seek::-moz-range-track {
+    .mv-audio-seek::-moz-range-track {
       height: 0.35rem;
       background: transparent;
       border-radius: 999px;
     }
-    .ll-audio-seek::-moz-range-thumb {
+    .mv-audio-seek::-moz-range-thumb {
       width: 0.95rem;
       height: 0.95rem;
       border-radius: 999px;
-      background: var(--ll-accent-bright, #5eead4);
-      border: 2px solid var(--ll-bg-elevated, #0c1522);
+      background: var(--mv-accent-bright, #5eead4);
+      border: 2px solid var(--mv-bg-elevated, #0c1522);
     }
-    .ll-audio-controls {
+    .mv-audio-controls {
       display: flex;
       flex-wrap: wrap;
       gap: 0.45rem;
     }
-    .ll-audio-controls .ll-btn {
+    .mv-audio-controls .mv-btn {
       min-height: 2.35rem;
       padding: 0.45rem 0.85rem;
       font-size: 0.82rem;
     }
-    .ll-audio-simple .ll-btn.is-playing {
-      background: var(--ll-surface-2, #182a3d);
-      color: var(--ll-accent, #2ec4a0);
-      border: 1px solid color-mix(in srgb, var(--ll-accent, #2ec4a0) 40%, transparent);
+    .mv-audio-simple .mv-btn.is-playing {
+      background: var(--mv-surface-2, #182a3d);
+      color: var(--mv-accent, #2ec4a0);
+      border: 1px solid color-mix(in srgb, var(--mv-accent, #2ec4a0) 40%, transparent);
     }
-    .ll-audio-full audio,
-    .ll-audio-simple audio {
+    .mv-audio-full audio,
+    .mv-audio-simple audio {
       display: none !important;
     }
   </style>

@@ -8,7 +8,7 @@
       .register(swUrl, { scope: "/" })
       .catch(function (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("mimivo PWA registration failed:", err);
+          console.warn("Mimivo PWA registration failed:", err);
         }
       });
   });

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ ui.study }} · {{ lesson.title }} · mimivo{% endblock %}
+{% block title %}{{ ui.study }} · {{ lesson.title }} · Mimivo{% endblock %}
 
 {% block content %}
   <div
@@ -15,20 +15,20 @@
 
     <div class="study-topbar mb-4 flex items-start justify-between gap-3">
       <div class="min-w-0 flex-1">
-        <p class="ll-eyebrow truncate" dir="ltr">{{ course.title }} · {{ section.title }}</p>
-        <h1 class="ll-title study-lesson-title" dir="ltr">{{ lesson.title }}</h1>
+        <p class="mv-eyebrow truncate" dir="ltr">{{ course.title }} · {{ section.title }}</p>
+        <h1 class="mv-title study-lesson-title" dir="ltr">{{ lesson.title }}</h1>
       </div>
       <a
         id="study-exit"
         href="{% url 'course_detail' course.pk %}"
-        class="ll-btn ll-btn-danger shrink-0 study-exit-btn"
+        class="mv-btn mv-btn-danger shrink-0 study-exit-btn"
       >
         {{ ui.exit_study }}
       </a>
     </div>
 
-    <section id="study-setup" class="ll-card p-4 sm:p-7">
-      <h2 class="ll-section-title text-xl">{{ ui.ready_to_study }}</h2>
+    <section id="study-setup" class="mv-card p-4 sm:p-7">
+      <h2 class="mv-section-title text-xl">{{ ui.ready_to_study }}</h2>
       <p class="mt-2 text-sm leading-6 text-slate-400" id="study-setup-lead" data-template="{{ ui.study_setup_lead }}">
         <span id="setup-total" class="font-medium text-emerald-300">0</span>
       </p>

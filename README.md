@@ -1,4 +1,4 @@
-# mimivo
+# Mimivo
 
 Dark-themed English learning app built with Django + Tailwind.
 
@@ -14,7 +14,7 @@ Hierarchy: **Course → Section → Lesson → Content items**
 ## Setup
 
 ```bash
-cd mimivo
+cd Mimivo
 source .venv/Scripts/activate
 pip install -r requirements.txt
 npm install

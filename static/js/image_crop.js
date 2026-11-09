@@ -9,31 +9,31 @@
   let activeSession = null;
 
   function ensureModal() {
-    let modal = document.getElementById("ll-crop-modal");
+    let modal = document.getElementById("mv-crop-modal");
     if (modal) return modal;
 
     modal = document.createElement("div");
-    modal.id = "ll-crop-modal";
-    modal.className = "ll-crop-modal hidden";
+    modal.id = "mv-crop-modal";
+    modal.className = "mv-crop-modal hidden";
     modal.setAttribute("hidden", "");
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.innerHTML = `
-      <button type="button" class="ll-crop-backdrop" data-crop-cancel aria-label="${t("cancel", "Cancel")}"></button>
-      <div class="ll-crop-panel">
-        <div class="ll-crop-head">
+      <button type="button" class="mv-crop-backdrop" data-crop-cancel aria-label="${t("cancel", "Cancel")}"></button>
+      <div class="mv-crop-panel">
+        <div class="mv-crop-head">
           <div>
-            <h2 class="ll-crop-title">${t("crop_title", "Crop image")}</h2>
-            <p class="ll-crop-hint">${t("crop_hint", "Drag to frame the area you want.")}</p>
+            <h2 class="mv-crop-title">${t("crop_title", "Crop image")}</h2>
+            <p class="mv-crop-hint">${t("crop_hint", "Drag to frame the area you want.")}</p>
           </div>
-          <button type="button" class="ll-btn ll-btn-ghost" data-crop-cancel style="min-height:2.35rem">${t("cancel", "Cancel")}</button>
+          <button type="button" class="mv-btn mv-btn-ghost" data-crop-cancel style="min-height:2.35rem">${t("cancel", "Cancel")}</button>
         </div>
-        <div class="ll-crop-stage">
-          <img id="ll-crop-image" alt="" />
+        <div class="mv-crop-stage">
+          <img id="mv-crop-image" alt="" />
         </div>
-        <div class="ll-crop-actions">
-          <button type="button" class="ll-btn ll-btn-ghost" data-crop-cancel>${t("cancel", "Cancel")}</button>
-          <button type="button" class="ll-btn ll-btn-primary" id="ll-crop-apply">${t("crop_apply", "Use photo")}</button>
+        <div class="mv-crop-actions">
+          <button type="button" class="mv-btn mv-btn-ghost" data-crop-cancel>${t("cancel", "Cancel")}</button>
+          <button type="button" class="mv-btn mv-btn-primary" id="mv-crop-apply">${t("crop_apply", "Use photo")}</button>
         </div>
       </div>
     `;
@@ -44,7 +44,7 @@
         if (activeSession && typeof activeSession.cancel === "function") activeSession.cancel();
       });
     });
-    const applyBtn = modal.querySelector("#ll-crop-apply");
+    const applyBtn = modal.querySelector("#mv-crop-apply");
     if (applyBtn) {
       applyBtn.addEventListener("click", function () {
         if (activeSession && typeof activeSession.apply === "function") activeSession.apply();
@@ -62,13 +62,13 @@
   function openModal(modal) {
     modal.classList.remove("hidden");
     modal.removeAttribute("hidden");
-    document.body.classList.add("ll-modal-open");
+    document.body.classList.add("mv-modal-open");
   }
 
   function closeModal(modal) {
     modal.classList.add("hidden");
     modal.setAttribute("hidden", "");
-    document.body.classList.remove("ll-modal-open");
+    document.body.classList.remove("mv-modal-open");
   }
 
   function setPreview(wrap, url, round) {
@@ -76,14 +76,14 @@
     let preview = wrap.querySelector("[data-crop-preview]");
     if (!preview) {
       preview = document.createElement("div");
-      preview.className = "ll-crop-preview" + (round ? " is-round" : "");
+      preview.className = "mv-crop-preview" + (round ? " is-round" : "");
       preview.setAttribute("data-crop-preview", "");
       wrap.insertBefore(preview, wrap.firstChild);
     }
     preview.classList.toggle("is-round", Boolean(round));
     preview.innerHTML = url
       ? `<img src="${url}" alt="" />`
-      : `<span class="ll-crop-preview-empty">${t("crop_choose", "Choose photo")}</span>`;
+      : `<span class="mv-crop-preview-empty">${t("crop_choose", "Choose photo")}</span>`;
   }
 
   function bindInput(input) {
@@ -97,7 +97,7 @@
     const round = input.dataset.cropRound === "1";
 
     const wrap = document.createElement("div");
-    wrap.className = "ll-crop-field";
+    wrap.className = "mv-crop-field";
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
 
@@ -108,17 +108,17 @@
 
     const pickBtn = document.createElement("button");
     pickBtn.type = "button";
-    pickBtn.className = "ll-btn ll-btn-ghost ll-crop-pick";
+    pickBtn.className = "mv-btn mv-btn-ghost mv-crop-pick";
     pickBtn.textContent = currentUrl
       ? t("crop_change", "Change photo")
       : t("crop_choose", "Choose photo");
     wrap.appendChild(pickBtn);
-    input.classList.add("ll-crop-file-input");
+    input.classList.add("mv-crop-file-input");
 
     let cropper = null;
     let objectUrl = null;
     const modal = ensureModal();
-    const img = modal.querySelector("#ll-crop-image");
+    const img = modal.querySelector("#mv-crop-image");
 
     function destroyCropper() {
       if (cropper) {

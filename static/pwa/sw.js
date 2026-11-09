@@ -1,5 +1,5 @@
-/* mimivo service worker */
-const CACHE_VERSION = "ll-pwa-v1";
+/* Mimivo service worker */
+const CACHE_VERSION = "mv-pwa-v1";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -26,7 +26,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("ll-pwa-") && key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+            .filter((key) => key.startsWith("mv-pwa-") && key !== SHELL_CACHE && key !== RUNTIME_CACHE)
             .map((key) => caches.delete(key))
         )
       )

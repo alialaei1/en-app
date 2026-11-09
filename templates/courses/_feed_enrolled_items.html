@@ -1,10 +1,10 @@
 {% for course in courses %}
-  <article class="ll-course-tile ll-card-interactive">
-    <a href="{% url 'course_detail' course.pk %}" class="ll-media ll-course-cover" aria-label="{{ course.title }}">
+  <article class="mv-course-tile mv-card-interactive">
+    <a href="{% url 'course_detail' course.pk %}" class="mv-media mv-course-cover" aria-label="{{ course.title }}">
       {% if course.image %}
         <img src="{{ course.image.url }}" alt="" loading="lazy" decoding="async" />
       {% else %}
-        <span class="ll-media-fallback">{{ ui.no_cover }}</span>
+        <span class="mv-media-fallback">{{ ui.no_cover }}</span>
       {% endif %}
     </a>
     <div class="p-3">
@@ -19,17 +19,17 @@
           <span dir="ltr">{{ course.author_name }}</span>
         {% endif %}
       </p>
-      <p class="ll-meta mt-2">
+      <p class="mv-meta mt-2">
         {{ course.section_count }} {{ ui.sec_short }}
         {% if course.lesson_count %} · {{ course.lesson_count }} {{ ui.lessons }}{% endif %}
         {% if course.rating_count %} · ★ {{ course.rating_avg|floatformat:1 }}{% endif %}
       </p>
       <div class="mt-3 flex gap-2">
-        <a href="{% url 'course_detail' course.pk %}" class="ll-btn ll-btn-primary flex-1" style="min-height:2.2rem;padding:0.35rem;font-size:0.75rem">{{ ui.open }}</a>
+        <a href="{% url 'course_detail' course.pk %}" class="mv-btn mv-btn-primary flex-1" style="min-height:2.2rem;padding:0.35rem;font-size:0.75rem">{{ ui.open }}</a>
         <form method="post" action="{% url 'course_unenroll' course.pk %}" class="flex-1" data-confirm="{{ ui.confirm_unenroll }}">
           {% csrf_token %}
           <input type="hidden" name="next" value="{% url 'enrolled_courses' %}" />
-          <button type="submit" class="ll-btn ll-btn-danger w-full" style="min-height:2.2rem;padding:0.35rem;font-size:0.75rem">{{ ui.remove }}</button>
+          <button type="submit" class="mv-btn mv-btn-danger w-full" style="min-height:2.2rem;padding:0.35rem;font-size:0.75rem">{{ ui.remove }}</button>
         </form>
       </div>
     </div>

@@ -1,11 +1,11 @@
 (function () {
-  const modal = document.getElementById("ll-confirm-modal");
+  const modal = document.getElementById("mv-confirm-modal");
   if (!modal) return;
 
-  const titleEl = document.getElementById("ll-confirm-title");
-  const messageEl = document.getElementById("ll-confirm-message");
-  const yesBtn = document.getElementById("ll-confirm-yes");
-  const noBtn = document.getElementById("ll-confirm-no");
+  const titleEl = document.getElementById("mv-confirm-title");
+  const messageEl = document.getElementById("mv-confirm-message");
+  const yesBtn = document.getElementById("mv-confirm-yes");
+  const noBtn = document.getElementById("mv-confirm-no");
   const uiNode = document.getElementById("ui-i18n");
   const UI = uiNode ? JSON.parse(uiNode.textContent || "{}") : {};
 
@@ -23,7 +23,7 @@
     if (noBtn) noBtn.textContent = UI.cancel || "Cancel";
     modal.classList.remove("hidden");
     modal.removeAttribute("hidden");
-    document.body.classList.add("ll-modal-open");
+    document.body.classList.add("mv-modal-open");
     if (yesBtn) yesBtn.focus();
   }
 
@@ -31,7 +31,7 @@
     pending = null;
     modal.classList.add("hidden");
     modal.setAttribute("hidden", "");
-    document.body.classList.remove("ll-modal-open");
+    document.body.classList.remove("mv-modal-open");
     if (lastFocus && typeof lastFocus.focus === "function") {
       try {
         lastFocus.focus();
@@ -92,7 +92,7 @@
 
   yesBtn && yesBtn.addEventListener("click", proceed);
   noBtn && noBtn.addEventListener("click", cancel);
-  modal.querySelectorAll("[data-ll-confirm-close]").forEach(function (el) {
+  modal.querySelectorAll("[data-mv-confirm-close]").forEach(function (el) {
     el.addEventListener("click", cancel);
   });
 

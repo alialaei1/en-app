@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}{{ ui.sign_up }} · mimivo{% endblock %}
+{% block title %}{{ ui.sign_up }} · Mimivo{% endblock %}
 
 {% block content %}
-  <div class="mx-auto max-w-md ll-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+  <div class="mx-auto max-w-md mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
     <div class="mb-7 text-center">
       <div class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-extrabold text-slate-950 shadow-lg shadow-emerald-500/25">LL</div>
-      <p class="ll-eyebrow">mimivo</p>
-      <h1 class="ll-title">{{ ui.create_account_title }}</h1>
-      <p class="ll-lead mx-auto">{{ ui.signup_lead }}</p>
+      <p class="mv-eyebrow">Mimivo</p>
+      <h1 class="mv-title">{{ ui.create_account_title }}</h1>
+      <p class="mv-lead mx-auto">{{ ui.signup_lead }}</p>
     </div>
 
-    <div class="ll-card p-5 sm:p-7">
+    <div class="mv-card p-5 sm:p-7">
       <form method="post" class="space-y-5" novalidate>
         {% csrf_token %}
         {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
@@ -32,7 +32,7 @@
           </div>
         {% endfor %}
 
-        <button type="submit" class="ll-btn ll-btn-primary w-full">{{ ui.create_account }}</button>
+        <button type="submit" class="mv-btn mv-btn-primary w-full">{{ ui.create_account }}</button>
       </form>
 
       <div class="my-6 flex items-center gap-3">
@@ -41,7 +41,7 @@
         <div class="h-px flex-1 bg-slate-800"></div>
       </div>
 
-      <button type="button" disabled class="ll-btn ll-btn-ghost w-full cursor-not-allowed opacity-50">
+      <button type="button" disabled class="mv-btn mv-btn-ghost w-full cursor-not-allowed opacity-50">
         {{ ui.continue_google }}
       </button>
 

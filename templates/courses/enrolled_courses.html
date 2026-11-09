@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ ui.enrolled_courses }} · mimivo{% endblock %}
+{% block title %}{{ ui.enrolled_courses }} · Mimivo{% endblock %}
 
 {% block content %}
   <div
-    class="ll-fade-in"
+    class="mv-fade-in"
     data-course-feed
     data-endpoint="{% url 'enrolled_courses' %}"
     data-page="{{ feed_page|default:1 }}"
@@ -13,23 +13,23 @@
     data-history="0"
     {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
   >
-    <div class="ll-page-head">
+    <div class="mv-page-head">
       <div>
-        <p class="ll-eyebrow">{{ ui.learning }}</p>
-        <h1 class="ll-title">{{ ui.enrolled_courses }}</h1>
-        <p class="ll-lead">{{ ui.enrolled_lead }}</p>
+        <p class="mv-eyebrow">{{ ui.learning }}</p>
+        <h1 class="mv-title">{{ ui.enrolled_courses }}</h1>
+        <p class="mv-lead">{{ ui.enrolled_lead }}</p>
       </div>
-      <a href="{% url 'explore' %}" class="ll-btn ll-btn-ghost hidden sm:inline-flex">{{ ui.browse_explore }}</a>
+      <a href="{% url 'explore' %}" class="mv-btn mv-btn-ghost hidden sm:inline-flex">{{ ui.browse_explore }}</a>
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3" data-course-feed-list {% if not courses %}hidden{% endif %}>
       {% include "courses/_feed_enrolled_items.html" %}
     </div>
 
-    <div class="ll-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
+    <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
       <h2>{{ ui.no_enrolled_yet }}</h2>
       <p>{{ ui.go_explore_enroll }}</p>
-      <a href="{% url 'explore' %}" class="ll-btn ll-btn-primary mt-5">{{ ui.go_to_explore }}</a>
+      <a href="{% url 'explore' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.go_to_explore }}</a>
     </div>
 
     <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>

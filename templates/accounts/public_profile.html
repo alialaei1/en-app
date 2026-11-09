@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ profile.public_name }} · mimivo{% endblock %}
+{% block title %}{{ profile.public_name }} · Mimivo{% endblock %}
 
 {% block content %}
   <div
-    class="ll-fade-in"
+    class="mv-fade-in"
     data-course-feed
     data-endpoint="{% url 'public_profile' profile.user_id %}"
     data-page="{{ feed_page|default:1 }}"
@@ -13,26 +13,26 @@
     data-history="0"
     {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
   >
-    <div class="ll-card mb-6 p-5 sm:p-6">
+    <div class="mv-card mb-6 p-5 sm:p-6">
       <div class="flex flex-wrap items-start gap-4 sm:gap-6">
         {% if profile.avatar %}
-          <span class="ll-media ll-avatar">
+          <span class="mv-media mv-avatar">
             <img src="{{ profile.avatar.url }}" alt="" decoding="async" />
           </span>
         {% else %}
-          <span class="ll-avatar grid place-items-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-bold text-slate-950">
+          <span class="mv-avatar grid place-items-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-2xl font-bold text-slate-950">
             {{ profile.public_name|slice:":1"|upper }}
           </span>
         {% endif %}
 
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <h1 class="ll-title" dir="ltr" style="font-size:1.55rem">{{ profile.public_name }}</h1>
+            <h1 class="mv-title" dir="ltr" style="font-size:1.55rem">{{ profile.public_name }}</h1>
             {% if is_own %}
-              <a href="{% url 'account' %}" class="ll-btn ll-btn-ghost" style="min-height:2.35rem">{{ ui.edit_profile }}</a>
+              <a href="{% url 'account' %}" class="mv-btn mv-btn-ghost" style="min-height:2.35rem">{{ ui.edit_profile }}</a>
             {% endif %}
           </div>
-          <p class="ll-eyebrow mt-1">{{ ui.creator }}</p>
+          <p class="mv-eyebrow mt-1">{{ ui.creator }}</p>
 
           <div class="mt-4 flex flex-wrap gap-5 text-sm">
             <div>
@@ -40,7 +40,7 @@
               <span class="text-slate-400"> {{ ui.public_courses }}</span>
             </div>
             <div>
-              <span class="ll-stars">★ {{ creator_rating_display }}</span>
+              <span class="mv-stars">★ {{ creator_rating_display }}</span>
               <span class="text-slate-400"> {{ ui.avg_rating }}</span>
             </div>
           </div>
@@ -60,7 +60,7 @@
       {% include "courses/_feed_profile_items.html" %}
     </div>
 
-    <div class="ll-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
+    <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
       <h2>{{ ui.no_public_courses }}</h2>
     </div>
 

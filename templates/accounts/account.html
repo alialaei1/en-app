@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ ui.your_profile }} · mimivo{% endblock %}
+{% block title %}{{ ui.your_profile }} · Mimivo{% endblock %}
 
 {% block content %}
-  <div class="mx-auto max-w-lg ll-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-    <p class="ll-eyebrow">{{ ui.profile }}</p>
-    <h1 class="ll-title">{{ ui.your_profile }}</h1>
-    <p class="ll-lead">{{ ui.profile_lead }}</p>
+  <div class="mx-auto max-w-lg mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <p class="mv-eyebrow">{{ ui.profile }}</p>
+    <h1 class="mv-title">{{ ui.your_profile }}</h1>
+    <p class="mv-lead">{{ ui.profile_lead }}</p>
 
-    <div class="ll-card mt-6 p-5 sm:p-6">
+    <div class="mv-card mt-6 p-5 sm:p-6">
       <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.signed_in_as }}</p>
       <p class="mt-1 text-lg font-medium text-white" dir="ltr">{{ user.email }}</p>
 
@@ -97,15 +97,15 @@
           </p>
         </section>
 
-        <div class="ll-actions">
-          <button type="submit" class="ll-btn ll-btn-primary">{{ ui.save_profile }}</button>
-          <a href="{% url 'public_profile' user.id %}" class="ll-btn ll-btn-ghost">{{ ui.view_public_profile }}</a>
+        <div class="mv-actions">
+          <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_profile }}</button>
+          <a href="{% url 'public_profile' user.id %}" class="mv-btn mv-btn-ghost">{{ ui.view_public_profile }}</a>
         </div>
       </form>
 
       <form method="post" action="{% url 'logout' %}" class="mt-4 border-t border-slate-800 pt-4">
         {% csrf_token %}
-        <button type="submit" class="ll-btn ll-btn-danger w-full">{{ ui.log_out }}</button>
+        <button type="submit" class="mv-btn mv-btn-danger w-full">{{ ui.log_out }}</button>
       </form>
     </div>
   </div>

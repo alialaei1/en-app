@@ -1,9 +1,9 @@
-<article class="ll-course-tile ll-card-interactive group">
-  <a href="{% url 'course_detail' course.pk %}" class="ll-media ll-course-cover" aria-label="{{ course.title }}">
+<article class="mv-course-tile mv-card-interactive group">
+  <a href="{% url 'course_detail' course.pk %}" class="mv-media mv-course-cover" aria-label="{{ course.title }}">
     {% if course.image %}
       <img src="{{ course.image.url }}" alt="" loading="lazy" decoding="async" />
     {% else %}
-      <span class="ll-media-fallback"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ ui.no_cover }}</span>
+      <span class="mv-media-fallback"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ ui.no_cover }}</span>
     {% endif %}
   </a>
   <div class="px-3 pt-3">
