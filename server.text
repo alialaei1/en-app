@@ -1,0 +1,16 @@
+
+94.184.28.252
+root
+Aa89114140
+==================================================================
+Congratulations! Installed successfully!
+==================================================================
+aaPanel Internet IPv4 Address: https://205.252.135.166:13519/04303515
+aaPanel Internal Address: https://94.184.28.252:13519/04303515
+username: i6qxfdkz
+password: 2be730ca
+Warning:
+If you cannot access the panel,
+release the following port (13519|888|80|443|20|21) in the security group
+==================================================================
+Time consumed: 1 Minute!
