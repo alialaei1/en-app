@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ page_title }} · LinguaLab{% endblock %}
+{% block title %}{{ page_title }} · mimivo{% endblock %}
 
 {% block content %}
   <div{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
@@ -392,7 +392,7 @@ And I think he’s {{red|right}}.
             id="ai-format-prompt"
             class="ai-format-prompt"
             dir="ltr"
-          >{% verbatim %}You are formatting a language-lesson transcript for LinguaLab import.
+          >{% verbatim %}You are formatting a language-lesson transcript for mimivo import.
 
 CRITICAL RULES ABOUT THE WORDS:
 - The spoken audio and the text MUST match exactly, like subtitles.
@@ -401,7 +401,7 @@ CRITICAL RULES ABOUT THE WORDS:
 - Do NOT add or remove spoken words.
 - You MAY only:
   1) split the transcript into study pieces,
-  2) add LinguaLab markup around existing words,
+  2) add mimivo markup around existing words,
   3) add @= meanings / translations for each piece.
 
 ========================================
@@ -429,7 +429,7 @@ Questions:
 - Put the meaning of the question on @= for that same piece.
 
 ========================================
-OUTPUT FORMAT (LinguaLab import)
+OUTPUT FORMAT (mimivo import)
 ========================================
 1) One blank line = a new study piece/card.
 2) Soft line wraps inside a piece stay together.
@@ -459,7 +459,7 @@ And I think he’s {{red|right}}.
 
 TASK:
 I will paste the raw transcript next.
-Return ONLY the fully formatted LinguaLab text.
+Return ONLY the fully formatted mimivo text.
 No explanation, no markdown fences, no commentary.
 
 RAW TRANSCRIPT:

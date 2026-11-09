@@ -34,7 +34,7 @@ class CourseForm(forms.ModelForm):
             "content_kind": "Content type",
         }
         help_texts = {
-            "visibility": "Public courses appear in Explore with your name. Private courses stay in My courses.",
+            "visibility": "Public courses appear in Explore with your name. Private courses stay in Created.",
             "content_kind": "Helps learners find this course in Explore filters.",
         }
         widgets = {

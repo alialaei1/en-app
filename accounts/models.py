@@ -40,7 +40,7 @@ class Profile(models.Model):
         max_length=10,
         choices=AppLanguage.choices,
         default=AppLanguage.EN,
-        help_text="Language of the LinguaLab interface.",
+        help_text="Language of the mimivo interface.",
     )
     learning_language = models.CharField(
         max_length=10,

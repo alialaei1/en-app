@@ -8,7 +8,7 @@
       .register(swUrl, { scope: "/" })
       .catch(function (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("LinguaLab PWA registration failed:", err);
+          console.warn("mimivo PWA registration failed:", err);
         }
       });
   });

@@ -102,7 +102,7 @@ class Course(OrderedModel):
     @property
     def author_name(self) -> str:
         if not self.owner_id:
-            return "LinguaLab"
+            return "mimivo"
         profile = getattr(self.owner, "profile", None)
         if profile is not None:
             return profile.public_name

@@ -1,4 +1,4 @@
-/* LinguaLab service worker */
+/* mimivo service worker */
 const CACHE_VERSION = "ll-pwa-v1";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
