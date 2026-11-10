@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import ssl
 import subprocess
+import time
 from pathlib import Path
 
 from .timings import relative_word_timings
@@ -98,9 +99,22 @@ def align_and_cut(
     `words` timings are relative to the cut clip.
     Model comes from `model_name` or env/settings `WHISPER_MODEL`.
     """
-    def report(percent: int, message: str) -> None:
-        if progress_callback:
-            progress_callback(percent, message)
+    last_report = {"percent": -1, "at": 0.0}
+
+    def report(percent: int, message: str, *, force: bool = False) -> None:
+        if not progress_callback:
+            return
+        percent = max(0, min(100, int(percent)))
+        now = time.monotonic()
+        # Avoid hammering the DB on every Whisper tqdm tick.
+        if not force and percent < 100:
+            if percent <= last_report["percent"] and (now - last_report["at"]) < 1.0:
+                return
+            if (now - last_report["at"]) < 0.7 and percent < last_report["percent"] + 1:
+                return
+        last_report["percent"] = percent
+        last_report["at"] = now
+        progress_callback(percent, message)
 
     try:
         import stable_whisper
@@ -111,11 +125,38 @@ def align_and_cut(
 
     selected_model = resolve_whisper_model(model_name)
     text = " ".join(chunks)
-    report(10, f"Loading Whisper model ({selected_model})…")
+    report(8, f"Loading Whisper model ({selected_model})…", force=True)
     _maybe_allow_insecure_model_download()
     model = stable_whisper.load_model(selected_model)
-    report(35, "Aligning text to audio…")
-    result = model.align(str(audio_path), text, language=language)
+    report(18, "Starting audio alignment…", force=True)
+
+    def on_whisper_progress(current: float, total: float) -> None:
+        total = float(total or 0)
+        current = float(current or 0)
+        if total <= 0:
+            report(20, "Aligning text with audio…")
+            return
+        frac = max(0.0, min(1.0, current / total))
+        # Keep alignment updates inside 20–78 so cutting still has room after.
+        percent = 20 + int(frac * 58)
+        remaining = max(0.0, total - current)
+        report(
+            percent,
+            (
+                f"Aligning audio… {int(frac * 100)}% "
+                f"({current:.0f}s / {total:.0f}s"
+                f"{f', ~{remaining:.0f}s left' if remaining > 1 else ''})"
+            ),
+        )
+
+    result = model.align(
+        str(audio_path),
+        text,
+        language=language,
+        verbose=None,  # hide console tqdm; UI progress_callback instead
+        progress_callback=on_whisper_progress,
+    )
+    report(80, "Alignment done — cutting clips…", force=True)
     words = result.all_words()
     spans = map_chunks_to_words(chunks, words)
 
@@ -125,7 +166,11 @@ def align_and_cut(
     total = max(len(chunks), 1)
 
     for i, (chunk, span) in enumerate(zip(chunks, spans), 1):
-        report(40 + int((i / total) * 55), f"Cutting audio clip {i} of {total}…")
+        report(
+            80 + int((i / total) * 18),
+            f"Cutting audio clip {i} of {total}…",
+            force=(i == 1 or i == total),
+        )
         if span is None:
             outputs.append(
                 {
@@ -154,5 +199,5 @@ def align_and_cut(
                 "words": relative_word_timings(group, start),
             }
         )
-    report(100, "Audio split complete")
+    report(100, "Audio split complete", force=True)
     return outputs

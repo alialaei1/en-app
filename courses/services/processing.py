@@ -64,12 +64,12 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
         aligned = None
         if align and audio_source and chunks_text:
             try:
-                lesson.set_progress(55, "Aligning text with audio (this can take a while)…")
+                lesson.set_progress(55, "Preparing alignment… this can take a few minutes")
 
                 def on_progress(percent: int, message: str) -> None:
-                    # Map align progress into 55–90 range
-                    mapped = 55 + int((max(0, min(100, percent)) / 100) * 35)
-                    lesson.set_progress(mapped, message)
+                    # Map align/cut progress into 55–92 so the UI keeps moving.
+                    mapped = 55 + int((max(0, min(100, percent)) / 100) * 37)
+                    lesson.set_progress(mapped, message or "Processing audio…")
 
                 aligned = align_and_cut(
                     audio_source,
