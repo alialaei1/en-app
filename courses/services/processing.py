@@ -68,6 +68,9 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
 
                 def on_progress(percent: int, message: str) -> None:
                     # Map align/cut progress into 55–92 so the UI keeps moving.
+                    from django.db import close_old_connections
+
+                    close_old_connections()
                     mapped = 55 + int((max(0, min(100, percent)) / 100) * 37)
                     lesson.set_progress(mapped, message or "Processing audio…")
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import ssl
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -130,14 +131,22 @@ def align_and_cut(
     model = stable_whisper.load_model(selected_model)
     report(18, "Starting audio alignment…", force=True)
 
-    def on_whisper_progress(current: float, total: float) -> None:
-        total = float(total or 0)
-        current = float(current or 0)
+    align_state = {"current": 0.0, "total": 0.0, "started": time.monotonic()}
+
+    def emit_align_progress(*, force: bool = False) -> None:
+        total = float(align_state["total"] or 0)
+        current = float(align_state["current"] or 0)
+        elapsed = time.monotonic() - align_state["started"]
         if total <= 0:
-            report(20, "Aligning text with audio…")
+            report(
+                20,
+                f"Aligning text with audio… ({elapsed:.0f}s elapsed)",
+                force=force,
+            )
             return
-        frac = max(0.0, min(1.0, current / total))
-        # Keep alignment updates inside 20–78 so cutting still has room after.
+        # Never let displayed progress go backwards within alignment.
+        current = max(0.0, min(current, total))
+        frac = current / total
         percent = 20 + int(frac * 58)
         remaining = max(0.0, total - current)
         report(
@@ -145,17 +154,60 @@ def align_and_cut(
             (
                 f"Aligning audio… {int(frac * 100)}% "
                 f"({current:.0f}s / {total:.0f}s"
-                f"{f', ~{remaining:.0f}s left' if remaining > 1 else ''})"
+                f"{f', ~{remaining:.0f}s left' if remaining > 1 else ''}"
+                f", {elapsed:.0f}s elapsed)"
             ),
+            force=force,
         )
 
-    result = model.align(
-        str(audio_path),
-        text,
-        language=language,
-        verbose=None,  # hide console tqdm; UI progress_callback instead
-        progress_callback=on_whisper_progress,
-    )
+    def on_whisper_progress(current: float, total: float) -> None:
+        try:
+            total = float(total or 0)
+            current = float(current or 0)
+            if total > 0:
+                align_state["total"] = total
+            # Keep the highest progress we have seen.
+            align_state["current"] = max(align_state["current"], current)
+            emit_align_progress()
+        except Exception:  # noqa: BLE001 - never break alignment for UI updates
+            return
+
+    # stable-ts feeds progress_callback from tqdm.n. With verbose=None, tqdm is
+    # disabled and n stays at 0. Patch _update_pbar to use last_ts directly.
+    from stable_whisper.non_whisper.alignment import Aligner
+
+    original_update_pbar = Aligner._update_pbar
+
+    def patched_update_pbar(self, tqdm_pbar, last_ts, finish: bool = False):
+        original_update_pbar(self, tqdm_pbar, last_ts, finish)
+        try:
+            total = float(getattr(tqdm_pbar, "total", 0) or align_state["total"] or 0)
+            current = float(total if finish else last_ts or 0)
+            on_whisper_progress(current, total)
+        except Exception:  # noqa: BLE001
+            return
+
+    stop_heartbeat = threading.Event()
+
+    def heartbeat() -> None:
+        while not stop_heartbeat.wait(2.0):
+            emit_align_progress(force=True)
+
+    Aligner._update_pbar = patched_update_pbar
+    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+    heartbeat_thread.start()
+    try:
+        result = model.align(
+            str(audio_path),
+            text,
+            language=language,
+            verbose=None,  # quiet console; patched pbar drives UI progress
+            progress_callback=on_whisper_progress,
+        )
+    finally:
+        stop_heartbeat.set()
+        Aligner._update_pbar = original_update_pbar
+
     report(80, "Alignment done — cutting clips…", force=True)
     words = result.all_words()
     spans = map_chunks_to_words(chunks, words)
