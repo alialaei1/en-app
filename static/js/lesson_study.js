@@ -51,7 +51,10 @@
   let speechWanted = false;
   let speechUpdating = false;
   let speechBase = "";
+  let speechLastFinal = "";
   let speechUnsupportedNotified = false;
+  const isCoarseMobile =
+    window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const timerEl = document.getElementById("study-timer");
   const bestRecordEl = document.getElementById("study-best-record");
   const timerStatusEl = document.getElementById("study-timer-status");
@@ -780,6 +783,48 @@
     speechUpdating = false;
   }
 
+  function normalizeSpeechText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s']/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /**
+   * Merge a new final transcript into the committed base.
+   * Android Chrome often re-sends the same final, or sends cumulative
+   * transcripts ("my" → "my name" → "my name is") which must replace, not append.
+   */
+  function mergeSpeechFinal(base, addition) {
+    const b = String(base || "").trim();
+    const a = String(addition || "").trim();
+    if (!a) return b ? `${b} ` : "";
+    if (!b) return `${a} `;
+
+    const bNorm = normalizeSpeechText(b);
+    const aNorm = normalizeSpeechText(a);
+    if (!aNorm) return `${b} `;
+    if (bNorm === aNorm || bNorm.endsWith(aNorm)) return `${b} `;
+    if (aNorm.startsWith(bNorm)) return `${a} `;
+
+    const bWords = bNorm.split(" ").filter(Boolean);
+    const aWords = aNorm.split(" ").filter(Boolean);
+    let overlap = 0;
+    const max = Math.min(bWords.length, aWords.length);
+    for (let n = max; n > 0; n -= 1) {
+      if (bWords.slice(-n).join(" ") === aWords.slice(0, n).join(" ")) {
+        overlap = n;
+        break;
+      }
+    }
+    if (overlap === aWords.length) return `${b} `;
+
+    const bRawWords = b.split(/\s+/).filter(Boolean);
+    const aRawWords = a.split(/\s+/).filter(Boolean);
+    return `${[...bRawWords, ...aRawWords.slice(overlap)].join(" ")} `;
+  }
+
   function stopSpeechRecognition(opts) {
     const keepHint = Boolean(opts && opts.keepHint);
     speechWanted = false;
@@ -804,7 +849,9 @@
     if (speechRecognition) return speechRecognition;
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = speechLang;
-    recognition.continuous = true;
+    // continuous=true + session restart on Android often duplicates finals.
+    // Mobile: non-continuous with auto-restart is more stable.
+    recognition.continuous = !isCoarseMobile;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
@@ -816,21 +863,44 @@
     };
 
     recognition.onresult = (event) => {
-      let finals = "";
+      let finals = [];
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const piece = event.results[i][0].transcript || "";
-        if (event.results[i].isFinal) finals += piece;
-        else interim += piece;
+        const piece = (event.results[i][0].transcript || "").trim();
+        if (!piece) continue;
+        if (event.results[i].isFinal) {
+          const norm = normalizeSpeechText(piece);
+          // Drop exact repeats of the previous final (common on Android).
+          if (norm && norm === normalizeSpeechText(speechLastFinal)) continue;
+          if (
+            normalizeSpeechText(speechBase).endsWith(norm) &&
+            norm.split(" ").length <= 4
+          ) {
+            continue;
+          }
+          speechLastFinal = piece;
+          finals.push(piece);
+        } else {
+          interim = interim ? `${interim} ${piece}` : piece;
+        }
       }
-      if (finals) {
-        const joined = [speechBase.trim(), finals.trim()].filter(Boolean).join(" ");
-        speechBase = joined ? `${joined} ` : "";
+
+      if (finals.length) {
+        let nextBase = speechBase;
+        finals.forEach((piece) => {
+          nextBase = mergeSpeechFinal(nextBase, piece);
+        });
+        speechBase = nextBase;
         setTypeInputFromSpeech(speechBase);
         return;
       }
+
       if (interim) {
-        const joined = [speechBase.trim(), interim.trim()].filter(Boolean).join(" ");
+        const interimNorm = normalizeSpeechText(interim);
+        const baseNorm = normalizeSpeechText(speechBase);
+        // Avoid painting interim that is clearly a duplicate of committed text.
+        if (interimNorm && baseNorm.endsWith(interimNorm)) return;
+        const joined = mergeSpeechFinal(speechBase, interim).trimEnd();
         setTypeInputFromSpeech(joined);
       }
     };
@@ -862,7 +932,8 @@
         setSpeechUi(false);
         return;
       }
-      // Chrome ends sessions after pauses — keep listening for shadowing.
+      // Chrome/Android end sessions after pauses — keep listening for shadowing.
+      // Delay a bit longer on mobile to reduce duplicate final replay on restart.
       window.setTimeout(() => {
         if (!speechWanted || !speechRecognition) return;
         try {
@@ -870,7 +941,7 @@
         } catch (_) {
           /* already started */
         }
-      }, 120);
+      }, isCoarseMobile ? 280 : 120);
     };
 
     speechRecognition = recognition;
@@ -895,6 +966,7 @@
     if (!recognition || !typeInput) return;
     const current = typeInput.value || "";
     speechBase = current && !/\s$/.test(current) ? `${current} ` : current;
+    speechLastFinal = "";
     speechWanted = true;
     setSpeechUi(true);
     try {
@@ -1201,6 +1273,7 @@
     activeHighlight = null;
     activeHighlightId = null;
     speechBase = "";
+    speechLastFinal = "";
     if (typeInput) typeInput.value = "";
     if (typeHint) {
       typeHint.textContent =
