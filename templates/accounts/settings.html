@@ -3,46 +3,50 @@
 {% block title %}{{ ui.settings_title }} · Mimivo{% endblock %}
 
 {% block content %}
-  <div class="mx-auto max-w-lg mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-    <div class="mb-6">
+  <div class="mv-account mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <header class="mv-account-hero">
       <p class="mv-eyebrow">{{ ui.preferences }}</p>
       <h1 class="mv-title">{{ ui.settings_title }}</h1>
       <p class="mv-lead">{{ ui.settings_lead }}</p>
-    </div>
+    </header>
 
-    <div class="mv-card p-5 sm:p-6">
-      <form method="post" class="space-y-5" id="settings-form">
-        {% csrf_token %}
+    <form method="post" class="mv-account-form" id="settings-form">
+      {% csrf_token %}
 
-        {% if form.non_field_errors %}
-          <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {{ form.non_field_errors|striptags }}
-          </div>
-        {% endif %}
-
-        {% for field in form %}
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            <div dir="ltr">{{ field }}</div>
-            {% if field.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
-            {% endif %}
-            {% if field.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ field.errors|striptags }}</p>
-            {% endif %}
-          </div>
-        {% endfor %}
-
-        <p class="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-100">
-          {{ supported_note }}
-        </p>
-
-        <div class="mv-actions">
-          <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_settings }}</button>
-          <a href="{% url 'account' %}" class="mv-btn mv-btn-ghost">{{ ui.profile }}</a>
+      {% if form.non_field_errors %}
+        <div class="mv-account-alert is-error">
+          {{ form.non_field_errors|striptags }}
         </div>
-      </form>
-    </div>
+      {% endif %}
+
+      <section class="mv-account-panel" aria-labelledby="settings-prefs-heading">
+        <div class="mv-account-panel-head">
+          <h2 id="settings-prefs-heading">{{ ui.preferences }}</h2>
+        </div>
+
+        <div class="mv-account-prefs-grid">
+          {% for field in form %}
+            <div class="mv-account-field">
+              <label class="mv-account-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              <div dir="ltr">{{ field }}</div>
+              {% if field.help_text %}
+                <p class="mv-account-help">{{ field.help_text }}</p>
+              {% endif %}
+              {% if field.errors %}
+                <p class="mv-account-error">{{ field.errors|striptags }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <p class="mv-account-note">{{ supported_note }}</p>
+      </section>
+
+      <div class="mv-account-save">
+        <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_settings }}</button>
+        <a href="{% url 'account' %}" class="mv-btn mv-btn-ghost">{{ ui.profile }}</a>
+      </div>
+    </form>
   </div>
 {% endblock %}
 

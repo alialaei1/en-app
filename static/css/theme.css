@@ -1003,6 +1003,325 @@ select.mv-field:focus {
   font-weight: 750;
 }
 
+/* Account / profile edit */
+.mv-account {
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.mv-account-hero {
+  margin-bottom: 0.25rem;
+}
+
+.mv-account-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--mv-border);
+  border-radius: var(--mv-radius);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--mv-accent) 12%, transparent),
+      transparent 55%
+    ),
+    var(--mv-surface);
+}
+
+.mv-account-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mv-muted);
+}
+
+.mv-account-email {
+  margin: 0.2rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--mv-text);
+  word-break: break-word;
+}
+
+.mv-account-identity-link {
+  min-height: 2.35rem;
+  padding-inline: 0.9rem;
+}
+
+.mv-account-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.mv-account-panel {
+  border: 1px solid var(--mv-border);
+  border-radius: var(--mv-radius);
+  background: var(--mv-surface);
+  box-shadow: var(--mv-shadow);
+  padding: 1.1rem 1.15rem 1.25rem;
+}
+
+.mv-account-panel-head {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--mv-border) 85%, transparent);
+}
+
+.mv-account-panel-head h2 {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--mv-text) 78%, var(--mv-muted));
+}
+
+.mv-account-profile-grid {
+  display: grid;
+  gap: 1.15rem;
+}
+
+@media (min-width: 640px) {
+  .mv-account-profile-grid {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+    gap: 1.35rem;
+    align-items: start;
+  }
+}
+
+.mv-account-photo {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+}
+
+.mv-account-photo-field {
+  width: 100%;
+}
+
+.mv-account-photo .mv-crop-field {
+  justify-items: start;
+}
+
+.mv-account-photo .mv-crop-preview.is-round {
+  width: 8rem;
+  height: 8rem;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--mv-accent) 28%, transparent);
+}
+
+.mv-account-fields,
+.mv-account-prefs-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .mv-account-prefs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mv-account-prefs-grid .mv-account-field:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.mv-account-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mv-account-label {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--mv-text) 88%, var(--mv-muted));
+}
+
+.mv-account-help {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mv-muted);
+}
+
+.mv-account-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #fda4af;
+}
+
+.mv-account-alert {
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.mv-account-alert.is-error {
+  border: 1px solid color-mix(in srgb, #fb7185 35%, transparent);
+  background: color-mix(in srgb, #fb7185 12%, transparent);
+  color: #fecdd3;
+}
+
+.mv-account-note {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--mv-warn) 28%, transparent);
+  background: color-mix(in srgb, var(--mv-warn) 10%, transparent);
+  color: color-mix(in srgb, var(--mv-warn) 70%, white);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.mv-account-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  position: sticky;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  padding: 0.75rem;
+  border: 1px solid var(--mv-border);
+  border-radius: var(--mv-radius);
+  background: color-mix(in srgb, var(--mv-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--mv-shadow);
+}
+
+.mv-account-save .mv-btn {
+  flex: 1 1 auto;
+}
+
+@media (min-width: 480px) {
+  .mv-account-save .mv-btn {
+    flex: 0 0 auto;
+  }
+}
+
+.mv-account-danger {
+  margin-top: 0.35rem;
+  padding-top: 1rem;
+  border-top: 1px dashed color-mix(in srgb, var(--mv-border) 90%, transparent);
+}
+
+/* Public profile */
+.mv-profile-public {
+  width: min(100%, 56rem);
+  margin-inline: auto;
+}
+
+.mv-profile-banner {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--mv-border);
+  border-radius: calc(var(--mv-radius) + 0.15rem);
+  background:
+    radial-gradient(
+      120% 80% at 0% 0%,
+      color-mix(in srgb, var(--mv-accent) 16%, transparent),
+      transparent 55%
+    ),
+    var(--mv-surface);
+  box-shadow: var(--mv-shadow);
+  overflow: hidden;
+}
+
+.mv-profile-banner-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  padding: 1.15rem 1.15rem 1.25rem;
+}
+
+.mv-profile-avatar {
+  width: 5.5rem;
+  height: 5.5rem;
+}
+
+@media (min-width: 640px) {
+  .mv-profile-avatar {
+    width: 6.5rem;
+    height: 6.5rem;
+  }
+}
+
+.mv-profile-banner-copy {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.mv-profile-banner-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.mv-profile-name {
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+}
+
+.mv-profile-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.95rem;
+}
+
+.mv-profile-stat {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 7.5rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--mv-border) 88%, transparent);
+  background: color-mix(in srgb, var(--mv-surface-2, var(--mv-surface)) 80%, transparent);
+}
+
+.mv-profile-stat-value {
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--mv-text);
+}
+
+.mv-profile-stat-label {
+  font-size: 0.74rem;
+  color: var(--mv-muted);
+}
+
+.mv-profile-bio {
+  margin: 0.95rem 0 0;
+  max-width: 40rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--mv-text) 82%, var(--mv-muted));
+}
+
+.mv-profile-courses-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--mv-border);
+}
+
+.mv-profile-courses-head h2 {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--mv-text) 78%, var(--mv-muted));
+}
+
 .mv-fade-in {
   animation: mv-rise 0.4s ease both;
 }

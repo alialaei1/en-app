@@ -4,108 +4,123 @@
 {% block title %}{{ ui.your_profile }} · Mimivo{% endblock %}
 
 {% block content %}
-  <div class="mx-auto max-w-lg mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-    <p class="mv-eyebrow">{{ ui.profile }}</p>
-    <h1 class="mv-title">{{ ui.your_profile }}</h1>
-    <p class="mv-lead">{{ ui.profile_lead }}</p>
+  <div class="mv-account mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <header class="mv-account-hero">
+      <p class="mv-eyebrow">{{ ui.profile }}</p>
+      <h1 class="mv-title">{{ ui.your_profile }}</h1>
+      <p class="mv-lead">{{ ui.profile_lead }}</p>
+    </header>
 
-    <div class="mv-card mt-6 p-5 sm:p-6">
-      <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.signed_in_as }}</p>
-      <p class="mt-1 text-lg font-medium text-white" dir="ltr">{{ user.email }}</p>
+    <div class="mv-account-identity">
+      <div class="mv-account-identity-main">
+        <p class="mv-account-kicker">{{ ui.signed_in_as }}</p>
+        <p class="mv-account-email" dir="ltr">{{ user.email }}</p>
+      </div>
+      <a href="{% url 'public_profile' user.id %}" class="mv-btn mv-btn-ghost mv-account-identity-link">{{ ui.view_public_profile }}</a>
+    </div>
 
-      <form method="post" enctype="multipart/form-data" class="mt-6 space-y-6" id="account-form">
-        {% csrf_token %}
+    <form method="post" enctype="multipart/form-data" class="mv-account-form" id="account-form">
+      {% csrf_token %}
 
-        {% if form.non_field_errors %}
-          <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {{ form.non_field_errors|striptags }}
-          </div>
-        {% endif %}
+      {% if form.non_field_errors %}
+        <div class="mv-account-alert is-error">
+          {{ form.non_field_errors|striptags }}
+        </div>
+      {% endif %}
 
-        <section class="space-y-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ ui.account_section_profile }}</h2>
+      <section class="mv-account-panel" aria-labelledby="account-profile-heading">
+        <div class="mv-account-panel-head">
+          <h2 id="account-profile-heading">{{ ui.account_section_profile }}</h2>
+        </div>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
-            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.display_name }}</div>
-            {% if form.display_name.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.display_name.errors|striptags }}</p>
-            {% endif %}
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
-            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.bio }}</div>
-            {% if form.bio.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.bio.errors|striptags }}</p>
-            {% endif %}
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.avatar.id_for_label }}">{{ form.avatar.label }}</label>
+        <div class="mv-account-profile-grid">
+          <div class="mv-account-photo">
+            <label class="mv-account-label" for="{{ form.avatar.id_for_label }}">{{ form.avatar.label }}</label>
             {% if profile.avatar %}
               <span hidden data-current-image="{{ profile.avatar.url }}"></span>
             {% endif %}
-            <div dir="ltr">{{ form.avatar }}</div>
+            <div class="mv-account-photo-field" dir="ltr">{{ form.avatar }}</div>
             {% if form.avatar.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ form.avatar.help_text }}</p>
+              <p class="mv-account-help">{{ form.avatar.help_text }}</p>
             {% endif %}
             {% if form.avatar.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.avatar.errors|striptags }}</p>
+              <p class="mv-account-error">{{ form.avatar.errors|striptags }}</p>
             {% endif %}
           </div>
-        </section>
 
-        <section class="space-y-5 border-t border-slate-800 pt-6">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ ui.account_section_prefs }}</h2>
+          <div class="mv-account-fields">
+            <div class="mv-account-field">
+              <label class="mv-account-label" for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
+              <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.display_name }}</div>
+              {% if form.display_name.errors %}
+                <p class="mv-account-error">{{ form.display_name.errors|striptags }}</p>
+              {% endif %}
+            </div>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.theme.id_for_label }}">{{ form.theme.label }}</label>
+            <div class="mv-account-field">
+              <label class="mv-account-label" for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
+              <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.bio }}</div>
+              {% if form.bio.errors %}
+                <p class="mv-account-error">{{ form.bio.errors|striptags }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mv-account-panel" aria-labelledby="account-prefs-heading">
+        <div class="mv-account-panel-head">
+          <h2 id="account-prefs-heading">{{ ui.account_section_prefs }}</h2>
+        </div>
+
+        <div class="mv-account-prefs-grid">
+          <div class="mv-account-field">
+            <label class="mv-account-label" for="{{ form.theme.id_for_label }}">{{ form.theme.label }}</label>
             <div dir="ltr">{{ form.theme }}</div>
             {% if form.theme.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ form.theme.help_text }}</p>
+              <p class="mv-account-help">{{ form.theme.help_text }}</p>
             {% endif %}
             {% if form.theme.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.theme.errors|striptags }}</p>
+              <p class="mv-account-error">{{ form.theme.errors|striptags }}</p>
             {% endif %}
           </div>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.app_language.id_for_label }}">{{ form.app_language.label }}</label>
+          <div class="mv-account-field">
+            <label class="mv-account-label" for="{{ form.app_language.id_for_label }}">{{ form.app_language.label }}</label>
             <div dir="ltr">{{ form.app_language }}</div>
             {% if form.app_language.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ form.app_language.help_text }}</p>
+              <p class="mv-account-help">{{ form.app_language.help_text }}</p>
             {% endif %}
             {% if form.app_language.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.app_language.errors|striptags }}</p>
+              <p class="mv-account-error">{{ form.app_language.errors|striptags }}</p>
             {% endif %}
           </div>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ form.learning_language.id_for_label }}">{{ form.learning_language.label }}</label>
+          <div class="mv-account-field">
+            <label class="mv-account-label" for="{{ form.learning_language.id_for_label }}">{{ form.learning_language.label }}</label>
             <div dir="ltr">{{ form.learning_language }}</div>
             {% if form.learning_language.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ form.learning_language.help_text }}</p>
+              <p class="mv-account-help">{{ form.learning_language.help_text }}</p>
             {% endif %}
             {% if form.learning_language.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ form.learning_language.errors|striptags }}</p>
+              <p class="mv-account-error">{{ form.learning_language.errors|striptags }}</p>
             {% endif %}
           </div>
-
-          <p class="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-100">
-            {{ supported_note }}
-          </p>
-        </section>
-
-        <div class="mv-actions">
-          <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_profile }}</button>
-          <a href="{% url 'public_profile' user.id %}" class="mv-btn mv-btn-ghost">{{ ui.view_public_profile }}</a>
         </div>
-      </form>
 
-      <form method="post" action="{% url 'logout' %}" class="mt-4 border-t border-slate-800 pt-4">
+        <p class="mv-account-note">{{ supported_note }}</p>
+      </section>
+
+      <div class="mv-account-save">
+        <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_profile }}</button>
+        <a href="{% url 'public_profile' user.id %}" class="mv-btn mv-btn-ghost">{{ ui.view_public_profile }}</a>
+      </div>
+    </form>
+
+    <div class="mv-account-danger">
+      <form method="post" action="{% url 'logout' %}">
         {% csrf_token %}
-        <button type="submit" class="mv-btn mv-btn-danger w-full">{{ ui.log_out }}</button>
+        <button type="submit" class="mv-btn mv-btn-danger w-full sm:w-auto">{{ ui.log_out }}</button>
       </form>
     </div>
   </div>
