@@ -51,10 +51,9 @@
   let speechWanted = false;
   let speechUpdating = false;
   let speechBase = "";
-  let speechLastFinal = "";
+  let speechSessionPrefix = "";
+  let speechRestartTimer = null;
   let speechUnsupportedNotified = false;
-  const isCoarseMobile =
-    window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const timerEl = document.getElementById("study-timer");
   const bestRecordEl = document.getElementById("study-best-record");
   const timerStatusEl = document.getElementById("study-timer-status");
@@ -792,9 +791,11 @@
   }
 
   /**
-   * Merge a new final transcript into the committed base.
-   * Android Chrome often re-sends the same final, or sends cumulative
-   * transcripts ("my" → "my name" → "my name is") which must replace, not append.
+   * Merge addition into base without duplicating Android cumulative/repeated finals.
+   * Examples:
+   *   "hi" + "hi" -> "hi"
+   *   "my" + "my name is" -> "my name is"
+   *   "hello" + "world" -> "hello world"
    */
   function mergeSpeechFinal(base, addition) {
     const b = String(base || "").trim();
@@ -805,7 +806,9 @@
     const bNorm = normalizeSpeechText(b);
     const aNorm = normalizeSpeechText(a);
     if (!aNorm) return `${b} `;
-    if (bNorm === aNorm || bNorm.endsWith(aNorm)) return `${b} `;
+    if (bNorm === aNorm || bNorm.endsWith(` ${aNorm}`) || bNorm.endsWith(aNorm)) {
+      return `${b} `;
+    }
     if (aNorm.startsWith(bNorm)) return `${a} `;
 
     const bWords = bNorm.split(" ").filter(Boolean);
@@ -825,9 +828,42 @@
     return `${[...bRawWords, ...aRawWords.slice(overlap)].join(" ")} `;
   }
 
+  /** Rebuild one recognition-session transcript with dedupe of repeated finals. */
+  function buildSessionTranscript(results) {
+    let committed = "";
+    let interim = "";
+    let lastFinalNorm = "";
+    for (let i = 0; i < results.length; i += 1) {
+      const piece = (results[i][0].transcript || "").trim();
+      if (!piece) continue;
+      if (results[i].isFinal) {
+        const norm = normalizeSpeechText(piece);
+        if (!norm || norm === lastFinalNorm) continue;
+        // Skip if this final is already fully contained at the end.
+        if (
+          normalizeSpeechText(committed) === norm ||
+          normalizeSpeechText(committed).endsWith(` ${norm}`) ||
+          normalizeSpeechText(committed).endsWith(norm)
+        ) {
+          lastFinalNorm = norm;
+          continue;
+        }
+        committed = mergeSpeechFinal(committed, piece).trim();
+        lastFinalNorm = norm;
+      } else {
+        interim = interim ? `${interim} ${piece}` : piece;
+      }
+    }
+    return { committed, interim };
+  }
+
   function stopSpeechRecognition(opts) {
     const keepHint = Boolean(opts && opts.keepHint);
     speechWanted = false;
+    if (speechRestartTimer) {
+      window.clearTimeout(speechRestartTimer);
+      speechRestartTimer = null;
+    }
     if (speechRecognition) {
       try {
         speechRecognition.stop();
@@ -849,13 +885,13 @@
     if (speechRecognition) return speechRecognition;
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = speechLang;
-    // continuous=true + session restart on Android often duplicates finals.
-    // Mobile: non-continuous with auto-restart is more stable.
-    recognition.continuous = !isCoarseMobile;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
+      // Snapshot text committed before this browser speech session.
+      speechSessionPrefix = speechBase;
       setSpeechUi(true);
       if (typeHint) {
         typeHint.textContent = t("speech_listening", "Listening… speak the card text");
@@ -863,45 +899,15 @@
     };
 
     recognition.onresult = (event) => {
-      let finals = [];
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const piece = (event.results[i][0].transcript || "").trim();
-        if (!piece) continue;
-        if (event.results[i].isFinal) {
-          const norm = normalizeSpeechText(piece);
-          // Drop exact repeats of the previous final (common on Android).
-          if (norm && norm === normalizeSpeechText(speechLastFinal)) continue;
-          if (
-            normalizeSpeechText(speechBase).endsWith(norm) &&
-            norm.split(" ").length <= 4
-          ) {
-            continue;
-          }
-          speechLastFinal = piece;
-          finals.push(piece);
-        } else {
-          interim = interim ? `${interim} ${piece}` : piece;
-        }
-      }
-
-      if (finals.length) {
-        let nextBase = speechBase;
-        finals.forEach((piece) => {
-          nextBase = mergeSpeechFinal(nextBase, piece);
-        });
-        speechBase = nextBase;
-        setTypeInputFromSpeech(speechBase);
-        return;
-      }
-
+      // Rebuild from the whole current session (not append-only from resultIndex).
+      // This is much more stable on Android Chrome.
+      const { committed, interim } = buildSessionTranscript(event.results);
+      speechBase = mergeSpeechFinal(speechSessionPrefix, committed);
       if (interim) {
-        const interimNorm = normalizeSpeechText(interim);
-        const baseNorm = normalizeSpeechText(speechBase);
-        // Avoid painting interim that is clearly a duplicate of committed text.
-        if (interimNorm && baseNorm.endsWith(interimNorm)) return;
-        const joined = mergeSpeechFinal(speechBase, interim).trimEnd();
-        setTypeInputFromSpeech(joined);
+        const live = mergeSpeechFinal(speechBase, interim).trimEnd();
+        setTypeInputFromSpeech(live);
+      } else {
+        setTypeInputFromSpeech(speechBase);
       }
     };
 
@@ -932,16 +938,19 @@
         setSpeechUi(false);
         return;
       }
-      // Chrome/Android end sessions after pauses — keep listening for shadowing.
-      // Delay a bit longer on mobile to reduce duplicate final replay on restart.
-      window.setTimeout(() => {
+      // Browser speech sessions end periodically (especially Android).
+      // Restart quietly so listening feels continuous; keep UI as "listening".
+      if (speechRestartTimer) window.clearTimeout(speechRestartTimer);
+      speechRestartTimer = window.setTimeout(() => {
+        speechRestartTimer = null;
         if (!speechWanted || !speechRecognition) return;
+        speechSessionPrefix = speechBase;
         try {
           speechRecognition.start();
         } catch (_) {
           /* already started */
         }
-      }, isCoarseMobile ? 280 : 120);
+      }, 50);
     };
 
     speechRecognition = recognition;
@@ -966,7 +975,7 @@
     if (!recognition || !typeInput) return;
     const current = typeInput.value || "";
     speechBase = current && !/\s$/.test(current) ? `${current} ` : current;
-    speechLastFinal = "";
+    speechSessionPrefix = speechBase;
     speechWanted = true;
     setSpeechUi(true);
     try {
@@ -1273,7 +1282,7 @@
     activeHighlight = null;
     activeHighlightId = null;
     speechBase = "";
-    speechLastFinal = "";
+    speechSessionPrefix = "";
     if (typeInput) typeInput.value = "";
     if (typeHint) {
       typeHint.textContent =
