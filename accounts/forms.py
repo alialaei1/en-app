@@ -205,7 +205,7 @@ class ProfileForm(forms.ModelForm):
                     "placeholder": "Short bio (optional)",
                 }
             ),
-            "avatar": forms.ClearableFileInput(
+            "avatar": forms.FileInput(
                 attrs={
                     "class": FILE_CLASS,
                     "accept": "image/*",
