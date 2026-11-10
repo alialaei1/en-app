@@ -4,10 +4,20 @@ Uses Whisper forced alignment (stable-ts) + ffmpeg cuts.
 """
 from __future__ import annotations
 
+import os
+import ssl
 import subprocess
 from pathlib import Path
 
 from .timings import relative_word_timings
+
+
+def _maybe_allow_insecure_model_download() -> None:
+    """Allow Whisper model download when VPS SSL interception breaks cert verify."""
+    flag = os.getenv("WHISPER_INSECURE_DOWNLOAD", "").strip().lower()
+    if flag not in {"1", "true", "yes", "on"}:
+        return
+    ssl._create_default_https_context = ssl._create_unverified_context  # noqa: S323
 
 
 def map_chunks_to_words(chunks: list[str], words, excluded: set[int] | None = None):
@@ -79,6 +89,7 @@ def align_and_cut(
 
     text = " ".join(chunks)
     report(10, "Loading Whisper model…")
+    _maybe_allow_insecure_model_download()
     model = stable_whisper.load_model(model_name)
     report(35, "Aligning text to audio…")
     result = model.align(str(audio_path), text, language=language)
