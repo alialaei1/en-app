@@ -163,6 +163,27 @@ MEDIA_ROOT = BASE_DIR / "media"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 
+# Whisper / stable-ts alignment model (English lessons → prefer *.en)
+# Options: tiny.en, tiny, base.en, base, small.en, small,
+#          medium.en, medium, large, large-v2, large-v3, turbo
+_WHISPER_MODELS = {
+    "tiny.en",
+    "tiny",
+    "base.en",
+    "base",
+    "small.en",
+    "small",
+    "medium.en",
+    "medium",
+    "large",
+    "large-v2",
+    "large-v3",
+    "turbo",
+}
+_whisper_model = os.getenv("WHISPER_MODEL", "small.en").strip()
+WHISPER_MODEL = _whisper_model if _whisper_model in _WHISPER_MODELS else "small.en"
+WHISPER_INSECURE_DOWNLOAD = _bool(os.getenv("WHISPER_INSECURE_DOWNLOAD"), False)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

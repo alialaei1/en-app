@@ -14,10 +14,31 @@ from .timings import relative_word_timings
 
 def _maybe_allow_insecure_model_download() -> None:
     """Allow Whisper model download when VPS SSL interception breaks cert verify."""
-    flag = os.getenv("WHISPER_INSECURE_DOWNLOAD", "").strip().lower()
-    if flag not in {"1", "true", "yes", "on"}:
+    try:
+        from django.conf import settings
+
+        enabled = bool(getattr(settings, "WHISPER_INSECURE_DOWNLOAD", False))
+    except Exception:  # noqa: BLE001 - allow use outside Django
+        enabled = os.getenv("WHISPER_INSECURE_DOWNLOAD", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    if not enabled:
         return
     ssl._create_default_https_context = ssl._create_unverified_context  # noqa: S323
+
+
+def resolve_whisper_model(model_name: str | None = None) -> str:
+    if model_name:
+        return model_name
+    try:
+        from django.conf import settings
+
+        return getattr(settings, "WHISPER_MODEL", "small.en")
+    except Exception:  # noqa: BLE001
+        return os.getenv("WHISPER_MODEL", "small.en").strip() or "small.en"
 
 
 def map_chunks_to_words(chunks: list[str], words, excluded: set[int] | None = None):
@@ -66,7 +87,7 @@ def align_and_cut(
     out_dir: Path,
     *,
     prefix: str = "chunk",
-    model_name: str = "small.en",
+    model_name: str | None = None,
     language: str = "en",
     padding_ms: int = 150,
     progress_callback=None,
@@ -75,6 +96,7 @@ def align_and_cut(
     Align chunk texts to audio and cut per-chunk mp3 files.
     Returns dicts with: index, text, start, end, path, words.
     `words` timings are relative to the cut clip.
+    Model comes from `model_name` or env/settings `WHISPER_MODEL`.
     """
     def report(percent: int, message: str) -> None:
         if progress_callback:
@@ -87,10 +109,11 @@ def align_and_cut(
             "stable-ts is not installed. Run: pip install stable-ts"
         ) from exc
 
+    selected_model = resolve_whisper_model(model_name)
     text = " ".join(chunks)
-    report(10, "Loading Whisper model…")
+    report(10, f"Loading Whisper model ({selected_model})…")
     _maybe_allow_insecure_model_download()
-    model = stable_whisper.load_model(model_name)
+    model = stable_whisper.load_model(selected_model)
     report(35, "Aligning text to audio…")
     result = model.align(str(audio_path), text, language=language)
     words = result.all_words()
