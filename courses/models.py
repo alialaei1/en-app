@@ -204,7 +204,7 @@ class Lesson(OrderedModel):
         upload_to="lessons/media/",
         blank=True,
         null=True,
-        help_text="Upload an audio or video file. Video is converted to audio.",
+        help_text="Upload an audio or video file. Video is compressed and kept as video.",
     )
     document_file = models.FileField(
         upload_to="lessons/docs/",
@@ -217,6 +217,7 @@ class Lesson(OrderedModel):
         help_text="Optional pasted text (one sentence/line per chunk).",
     )
     source_audio = models.FileField(upload_to="lessons/audio/", blank=True, null=True)
+    source_video = models.FileField(upload_to="lessons/video/", blank=True, null=True)
     extracted_text = models.TextField(blank=True)
     processing_status = models.CharField(
         max_length=20,
@@ -334,9 +335,10 @@ class LessonChunk(OrderedModel):
     # [{"text": "AJ", "color": "red", "start_char": 0, "end_char": 2}, ...]
     color_spans = models.JSONField(default=list, blank=True)
     audio = models.FileField(upload_to="lessons/chunks/", blank=True, null=True)
+    video = models.FileField(upload_to="lessons/chunks/video/", blank=True, null=True)
     start_sec = models.FloatField(blank=True, null=True)
     end_sec = models.FloatField(blank=True, null=True)
-    # [{"word": "Hello", "start": 0.12, "end": 0.40}, ...] relative to this chunk's audio
+    # [{"word": "Hello", "start": 0.12, "end": 0.40}, ...] relative to this chunk's media
     word_timings = models.JSONField(default=list, blank=True)
     # Study mastery for this piece: 1 = just starting, 7 = knows very well
     study_level = models.PositiveSmallIntegerField(

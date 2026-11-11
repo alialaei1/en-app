@@ -49,7 +49,18 @@
       {% if lesson.processing_error %}
         <p class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" dir="auto">{{ lesson.processing_error }}</p>
       {% endif %}
-      {% if lesson.source_audio %}
+      {% if lesson.source_video %}
+        <div class="mt-5">
+          <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.full_lesson_video|default:"Full lesson video" }}</p>
+          <video
+            class="w-full max-h-96 rounded-xl bg-black object-contain"
+            controls
+            playsinline
+            preload="metadata"
+            src="{{ lesson.source_video.url }}?v={{ lesson.source_video.size }}"
+          ></video>
+        </div>
+      {% elif lesson.source_audio %}
         <div class="mt-5">
           <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.full_lesson_audio }}</p>
           <div
@@ -166,7 +177,15 @@
                 </div>
                 {% endif %}
               </div>
-              {% if chunk.audio %}
+              {% if chunk.video %}
+                <video
+                  class="mt-3 w-full max-h-56 rounded-xl bg-black object-contain"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  src="{{ chunk.video.url }}"
+                ></video>
+              {% elif chunk.audio %}
                 <div
                   class="mv-audio-simple mt-3"
                   data-audio-player="simple"
@@ -334,6 +353,6 @@
       display: none !important;
     }
   </style>
-  <script src="{% static 'js/secure_audio.js' %}?v=3"></script>
-  <script src="{% static 'js/lesson_detail.js' %}?v=6"></script>
+  <script src="{% static 'js/secure_audio.js' %}"></script>
+  <script src="{% static 'js/lesson_detail.js' %}"></script>
 {% endblock %}

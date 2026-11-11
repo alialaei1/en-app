@@ -12,6 +12,9 @@ def highlight_payload(highlight) -> dict:
 
 def chunk_payload(chunk) -> dict:
     highlights = [highlight_payload(item) for item in chunk.highlights.all()]
+    video_url = chunk.video.url if getattr(chunk, "video", None) and chunk.video else ""
+    audio_url = chunk.audio.url if chunk.audio else ""
+    media_kind = "video" if video_url else ("audio" if audio_url else "")
     return {
         "id": chunk.pk,
         "text": chunk.text,
@@ -22,7 +25,10 @@ def chunk_payload(chunk) -> dict:
         "study_level": chunk.study_level,
         "best_type_ms": chunk.best_type_ms,
         "word_timing_count": len(chunk.word_timings or []),
-        "audio_url": chunk.audio.url if chunk.audio else "",
+        "video_url": video_url,
+        "audio_url": audio_url or video_url,
+        "media_url": video_url or audio_url,
+        "media_kind": media_kind,
         "highlights": highlights,
     }
 
@@ -30,7 +36,8 @@ def chunk_payload(chunk) -> dict:
 def study_chunk_payload(chunk) -> dict:
     data = chunk_payload(chunk)
     data["has_sentence_meaning"] = bool((chunk.sentence_meaning or "").strip())
-    data["has_audio"] = bool(chunk.audio)
+    data["has_audio"] = bool(data.get("media_url"))
+    data["has_video"] = data.get("media_kind") == "video"
     data["word_count"] = len((chunk.text or "").split())
     return data
 

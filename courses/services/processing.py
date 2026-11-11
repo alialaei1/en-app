@@ -7,13 +7,14 @@ from django.core.files import File
 
 from .audio_split import align_and_cut
 from .import_markup import ParsedChunk, parse_lesson_document
-from .media import convert_to_audio, extract_text, is_video
+from .media import compress_video, convert_to_audio, extract_text, is_video
 from .timings import highlight_audio_span
 
 
 def process_lesson_media(lesson, *, align: bool = True) -> int:
     """
     Convert uploaded media/document into LessonChunk rows.
+    Video uploads are compressed and kept as video; audio stays audio.
     Returns the number of chunks created.
     """
     from courses.models import ChunkHighlight, LessonChunk
@@ -41,8 +42,9 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
     )
 
     try:
-        lesson.set_progress(15, "Preparing audio…")
-        audio_source = _resolve_audio(lesson, work_dir)
+        lesson.set_progress(15, "Preparing media…")
+        audio_source, video_source = _resolve_media(lesson, work_dir)
+        is_video_lesson = video_source is not None
 
         lesson.set_progress(35, "Extracting text from document…")
         parsed_chunks = _resolve_chunks(lesson)
@@ -51,6 +53,18 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
 
         if lesson.source_audio:
             lesson.source_audio.delete(save=False)
+        if lesson.source_video:
+            lesson.source_video.delete(save=False)
+
+        if video_source and video_source.exists():
+            lesson.set_progress(42, "Saving compressed lesson video…")
+            with video_source.open("rb") as handle:
+                lesson.source_video.save(
+                    f"lesson_{lesson.pk}_full.mp4",
+                    File(handle),
+                    save=False,
+                )
+
         if audio_source and audio_source.exists():
             lesson.set_progress(45, "Saving full lesson audio…")
             with audio_source.open("rb") as handle:
@@ -64,7 +78,10 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
         aligned = None
         if align and audio_source and chunks_text:
             try:
-                lesson.set_progress(55, "Preparing alignment… this can take a few minutes")
+                lesson.set_progress(
+                    55,
+                    "Preparing alignment… this can take a few minutes",
+                )
 
                 def on_progress(percent: int, message: str) -> None:
                     # Map align/cut progress into 55–92 so the UI keeps moving.
@@ -72,7 +89,7 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
 
                     close_old_connections()
                     mapped = 55 + int((max(0, min(100, percent)) / 100) * 37)
-                    lesson.set_progress(mapped, message or "Processing audio…")
+                    lesson.set_progress(mapped, message or "Processing media…")
 
                 aligned = align_and_cut(
                     audio_source,
@@ -80,9 +97,11 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
                     work_dir / "clips",
                     prefix=f"l{lesson.pk}",
                     progress_callback=on_progress,
+                    cut_source=video_source if is_video_lesson else audio_source,
+                    cut_as_video=is_video_lesson,
                 )
             except Exception as exc:  # noqa: BLE001 - keep text chunks even if align fails
-                lesson.processing_error = f"Audio split skipped: {exc}"
+                lesson.processing_error = f"Media split skipped: {exc}"
                 aligned = None
 
         lesson.set_progress(92, "Saving content items…")
@@ -105,7 +124,10 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
                 clip = item.get("path")
                 if clip and Path(clip).exists():
                     with Path(clip).open("rb") as handle:
-                        chunk.audio.save(Path(clip).name, File(handle), save=False)
+                        if is_video_lesson:
+                            chunk.video.save(Path(clip).name, File(handle), save=False)
+                        else:
+                            chunk.audio.save(Path(clip).name, File(handle), save=False)
                 chunk.save()
                 if parsed:
                     _save_imported_highlights(chunk, parsed, ChunkHighlight)
@@ -131,6 +153,7 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
         lesson.save(
             update_fields=[
                 "source_audio",
+                "source_video",
                 "extracted_text",
                 "processing_status",
                 "processing_error",
@@ -157,15 +180,30 @@ def process_lesson_media(lesson, *, align: bool = True) -> int:
         raise
 
 
-def _resolve_audio(lesson, work_dir: Path) -> Path | None:
-    if lesson.media_file:
-        source = Path(lesson.media_file.path)
-        target = work_dir / "full.mp3"
-        if is_video(source) or source.suffix.lower() != ".mp3":
-            return convert_to_audio(source, target)
-        shutil.copyfile(source, target)
-        return target
-    return None
+def _resolve_media(lesson, work_dir: Path) -> tuple[Path | None, Path | None]:
+    """
+    Prepare working media files.
+    Returns (audio_path_for_alignment, video_path_or_none).
+    """
+    if not lesson.media_file:
+        return None, None
+
+    source = Path(lesson.media_file.path)
+    if is_video(source):
+        video_target = work_dir / "full.mp4"
+        lesson.set_progress(18, "Compressing video…")
+        compress_video(source, video_target)
+        audio_target = work_dir / "full.mp3"
+        lesson.set_progress(28, "Extracting audio for sync…")
+        convert_to_audio(video_target, audio_target)
+        return audio_target, video_target
+
+    audio_target = work_dir / "full.mp3"
+    if source.suffix.lower() != ".mp3":
+        convert_to_audio(source, audio_target)
+    else:
+        shutil.copyfile(source, audio_target)
+    return audio_target, None
 
 
 def _resolve_chunks(lesson) -> list[ParsedChunk]:

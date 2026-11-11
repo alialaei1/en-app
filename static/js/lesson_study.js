@@ -71,6 +71,23 @@
   const nextBtn = document.getElementById("study-next");
   const exitLink = document.getElementById("study-exit");
   const audio = document.getElementById("study-audio");
+  const video = document.getElementById("study-video");
+  const videoDock = document.getElementById("study-video-dock");
+  const videoDockChrome = videoDock ? videoDock.querySelector("[data-dock-drag]") : null;
+  const videoDockResize = videoDock ? videoDock.querySelector("[data-dock-resize]") : null;
+  const videoMinimizeBtn = document.getElementById("study-video-minimize");
+  const videoSizeSmBtn = document.getElementById("study-video-size-sm");
+  const videoSizeMdBtn = document.getElementById("study-video-size-md");
+
+  const VIDEO_DOCK_KEY = "mimivo.studyVideoDock.v1";
+  let videoDockState = {
+    x: null,
+    y: null,
+    w: null,
+    h: null,
+    minimized: false,
+  };
+  let videoDockVisible = false;
 
   let queue = [];
   let index = 0;
@@ -256,8 +273,240 @@
     return Math.max(0.5, Math.min(2, rate));
   }
 
+  function chunkMediaUrl(chunk) {
+    if (!chunk) return "";
+    return chunk.video_url || chunk.media_url || chunk.audio_url || "";
+  }
+
+  function chunkIsVideo(chunk) {
+    if (!chunk) return false;
+    if (chunk.media_kind === "video" || chunk.has_video) return true;
+    return Boolean(chunk.video_url);
+  }
+
+  function activeMediaEl(chunk) {
+    return chunkIsVideo(chunk) ? video : audio;
+  }
+
   function applyAudioRate() {
-    if (audio) audio.playbackRate = getPlaybackRate();
+    const rate = getPlaybackRate();
+    if (audio) audio.playbackRate = rate;
+    if (video) video.playbackRate = rate;
+  }
+
+  function defaultDockSize() {
+    const vw = window.innerWidth || 360;
+    const isNarrow = vw < 640;
+    return {
+      w: Math.round(Math.min(vw * (isNarrow ? 0.88 : 0.34), isNarrow ? 288 : 352)),
+      h: Math.round(isNarrow ? 168 : 200),
+    };
+  }
+
+  function defaultDockPosition(w, h) {
+    const margin = 12;
+    const safeBottom = 16;
+    const x = Math.max(margin, (window.innerWidth || 360) - w - margin);
+    const y = Math.max(
+      margin,
+      (window.innerHeight || 640) - h - safeBottom - (window.visualViewport ? 0 : 0)
+    );
+    return { x, y };
+  }
+
+  function loadVideoDockState() {
+    try {
+      const raw = localStorage.getItem(VIDEO_DOCK_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      videoDockState = {
+        x: Number.isFinite(parsed.x) ? parsed.x : null,
+        y: Number.isFinite(parsed.y) ? parsed.y : null,
+        w: Number.isFinite(parsed.w) ? parsed.w : null,
+        h: Number.isFinite(parsed.h) ? parsed.h : null,
+        minimized: Boolean(parsed.minimized),
+      };
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function saveVideoDockState() {
+    try {
+      localStorage.setItem(VIDEO_DOCK_KEY, JSON.stringify(videoDockState));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function clampVideoDock() {
+    if (!videoDock) return;
+    const rect = videoDock.getBoundingClientRect();
+    const w = rect.width;
+    const h = videoDock.classList.contains("is-minimized")
+      ? rect.height
+      : Number(videoDockState.h) || rect.height;
+    const maxX = Math.max(8, (window.innerWidth || w) - w - 8);
+    const maxY = Math.max(8, (window.innerHeight || h) - h - 8);
+    let x = Number.isFinite(videoDockState.x) ? videoDockState.x : rect.left;
+    let y = Number.isFinite(videoDockState.y) ? videoDockState.y : rect.top;
+    x = Math.min(maxX, Math.max(8, x));
+    y = Math.min(maxY, Math.max(8, y));
+    videoDockState.x = x;
+    videoDockState.y = y;
+    videoDock.style.left = `${x}px`;
+    videoDock.style.top = `${y}px`;
+    videoDock.style.right = "auto";
+    videoDock.style.bottom = "auto";
+  }
+
+  function applyVideoDockGeometry() {
+    if (!videoDock) return;
+    const fallback = defaultDockSize();
+    const w = Number.isFinite(videoDockState.w) ? videoDockState.w : fallback.w;
+    const h = Number.isFinite(videoDockState.h) ? videoDockState.h : fallback.h;
+    videoDockState.w = w;
+    videoDockState.h = h;
+    videoDock.style.width = `${w}px`;
+    if (!videoDockState.minimized) {
+      videoDock.style.height = `${h}px`;
+    } else {
+      videoDock.style.height = "auto";
+    }
+    videoDock.classList.toggle("is-minimized", Boolean(videoDockState.minimized));
+    if (videoMinimizeBtn) {
+      videoMinimizeBtn.textContent = videoDockState.minimized ? "+" : "–";
+      videoMinimizeBtn.title = videoDockState.minimized
+        ? t("expand_video", "Expand")
+        : t("minimize_video", "Minimize");
+      videoMinimizeBtn.setAttribute("aria-label", videoMinimizeBtn.title);
+    }
+    if (videoSizeSmBtn) {
+      videoSizeSmBtn.classList.toggle("is-active", !videoDockState.minimized && w <= 260);
+    }
+    if (videoSizeMdBtn) {
+      videoSizeMdBtn.classList.toggle(
+        "is-active",
+        !videoDockState.minimized && w > 260 && w <= 380
+      );
+    }
+    if (!Number.isFinite(videoDockState.x) || !Number.isFinite(videoDockState.y)) {
+      const pos = defaultDockPosition(w, videoDockState.minimized ? 40 : h);
+      videoDockState.x = pos.x;
+      videoDockState.y = pos.y;
+    }
+    clampVideoDock();
+  }
+
+  function setVideoDockVisible(show) {
+    if (!videoDock) return;
+    videoDockVisible = Boolean(show);
+    videoDock.classList.toggle("is-hidden", !videoDockVisible);
+    videoDock.hidden = !videoDockVisible;
+    videoDock.setAttribute("aria-hidden", videoDockVisible ? "false" : "true");
+    if (videoDockVisible) {
+      applyVideoDockGeometry();
+    }
+  }
+
+  function setVideoDockSizePreset(kind) {
+    const vw = window.innerWidth || 360;
+    if (kind === "sm") {
+      videoDockState.w = Math.round(Math.min(vw * 0.72, 220));
+      videoDockState.h = Math.round(videoDockState.w * 0.62);
+    } else {
+      videoDockState.w = Math.round(Math.min(vw * 0.9, 340));
+      videoDockState.h = Math.round(videoDockState.w * 0.6);
+    }
+    videoDockState.minimized = false;
+    applyVideoDockGeometry();
+    saveVideoDockState();
+  }
+
+  function bindVideoDockInteractions() {
+    if (!videoDock) return;
+    loadVideoDockState();
+    applyVideoDockGeometry();
+
+    const onPointerMove = (event, mode, start) => {
+      if (mode === "drag") {
+        videoDockState.x = start.x + (event.clientX - start.px);
+        videoDockState.y = start.y + (event.clientY - start.py);
+        clampVideoDock();
+      } else if (mode === "resize") {
+        const nextW = Math.min(
+          Math.max(150, start.w + (event.clientX - start.px) * start.sx),
+          Math.min((window.innerWidth || 400) - 16, 640)
+        );
+        const nextH = Math.min(
+          Math.max(100, start.h + (event.clientY - start.py)),
+          Math.min((window.innerHeight || 400) - 16, 480)
+        );
+        videoDockState.w = Math.round(nextW);
+        videoDockState.h = Math.round(nextH);
+        videoDockState.minimized = false;
+        applyVideoDockGeometry();
+      }
+    };
+
+    const startGesture = (event, mode) => {
+      if (event.button != null && event.button !== 0) return;
+      event.preventDefault();
+      const isRtl = Boolean(document.documentElement.dir === "rtl" || root.getAttribute("dir") === "rtl");
+      const start = {
+        px: event.clientX,
+        py: event.clientY,
+        x: Number(videoDockState.x) || 0,
+        y: Number(videoDockState.y) || 0,
+        w: Number(videoDockState.w) || videoDock.offsetWidth,
+        h: Number(videoDockState.h) || videoDock.offsetHeight,
+        sx: mode === "resize" && isRtl ? -1 : 1,
+      };
+      videoDock.classList.add("is-dragging");
+      const move = (ev) => onPointerMove(ev, mode, start);
+      const up = () => {
+        videoDock.classList.remove("is-dragging");
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        clampVideoDock();
+        saveVideoDockState();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    };
+
+    if (videoDockChrome) {
+      videoDockChrome.addEventListener("pointerdown", (event) => {
+        if (event.target.closest("button")) return;
+        startGesture(event, "drag");
+      });
+    }
+    if (videoDockResize) {
+      videoDockResize.addEventListener("pointerdown", (event) => {
+        startGesture(event, "resize");
+      });
+    }
+    if (videoMinimizeBtn) {
+      videoMinimizeBtn.addEventListener("click", () => {
+        videoDockState.minimized = !videoDockState.minimized;
+        applyVideoDockGeometry();
+        saveVideoDockState();
+      });
+    }
+    if (videoSizeSmBtn) {
+      videoSizeSmBtn.addEventListener("click", () => setVideoDockSizePreset("sm"));
+    }
+    if (videoSizeMdBtn) {
+      videoSizeMdBtn.addEventListener("click", () => setVideoDockSizePreset("md"));
+    }
+    window.addEventListener("resize", () => {
+      if (!videoDockVisible) return;
+      clampVideoDock();
+      saveVideoDockState();
+    });
   }
 
   function syncSettingsForm() {
@@ -684,7 +933,7 @@
         // Keep the real word in the DOM so Show/Hide never changes layout width.
         const meaning = (ev.meaning || "").trim();
         const canPlay =
-          Boolean(currentChunk()?.audio_url) &&
+          Boolean(chunkMediaUrl(currentChunk())) &&
           Number.isFinite(Number(ev.start_sec)) &&
           Number.isFinite(Number(ev.end_sec)) &&
           Number(ev.end_sec) >= Number(ev.start_sec);
@@ -992,7 +1241,7 @@
 
   function setPlayingUI(isPlaying) {
     if (stopBtn) stopBtn.disabled = !isPlaying;
-    if (playBtn && currentChunk()?.audio_url) {
+    if (playBtn && chunkMediaUrl(currentChunk())) {
       playBtn.textContent = isPlaying ? t("playing", "▶ Playing…") : t("play_card", "▶ Play card");
     }
   }
@@ -1002,59 +1251,76 @@
       window.clearTimeout(stopTimer);
       stopTimer = null;
     }
-    if (audio && stopListener) {
-      audio.removeEventListener("timeupdate", stopListener);
-      stopListener = null;
-    }
-    if (audio && endedListener) {
-      audio.removeEventListener("ended", endedListener);
-      endedListener = null;
-    }
-    if (!audio) {
-      setPlayingUI(false);
-      return;
-    }
-    audio.pause();
-    try {
-      audio.currentTime = 0;
-    } catch (_) {
-      /* ignore */
-    }
+    [audio, video].forEach((el) => {
+      if (!el) return;
+      if (stopListener) el.removeEventListener("timeupdate", stopListener);
+      if (endedListener) el.removeEventListener("ended", endedListener);
+      el.pause();
+      try {
+        el.currentTime = 0;
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    stopListener = null;
+    endedListener = null;
     setPlayingUI(false);
   }
 
-  function ensureCardAudio(chunk) {
-    if (!audio || !chunk?.audio_url) return false;
-    if (audio.getAttribute("src") !== chunk.audio_url) {
-      audio.src = chunk.audio_url;
+  function ensureCardMedia(chunk) {
+    const url = chunkMediaUrl(chunk);
+    const el = activeMediaEl(chunk);
+    if (!el || !url) return null;
+    if (el.getAttribute("src") !== url) {
+      el.src = url;
     }
-    return true;
+    if (chunkIsVideo(chunk)) {
+      setVideoDockVisible(true);
+      if (audio) {
+        audio.removeAttribute("src");
+        try {
+          audio.load();
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    } else {
+      setVideoDockVisible(false);
+    }
+    return el;
   }
 
   function playFullCard({ startTimer = true } = {}) {
     const chunk = currentChunk();
-    if (!ensureCardAudio(chunk)) return;
+    const media = ensureCardMedia(chunk);
+    if (!media) return;
     if (startTimer) ensureCardTimerStarted();
     stopAudio();
+    ensureCardMedia(chunk);
     applyAudioRate();
     endedListener = () => {
       endedListener = null;
       setPlayingUI(false);
     };
-    audio.addEventListener("ended", endedListener);
-    const playPromise = audio.play();
+    media.addEventListener("ended", endedListener);
+    const playPromise = media.play();
     setPlayingUI(true);
     if (playPromise && typeof playPromise.catch === "function") {
       playPromise.catch(() => {
         stopAudio();
-        if (levelStatus) levelStatus.textContent = t("could_not_play_audio", "Could not play audio.");
+        if (levelStatus) {
+          levelStatus.textContent = chunkIsVideo(chunk)
+            ? t("could_not_play_video", "Could not play video.")
+            : t("could_not_play_audio", "Could not play audio.");
+        }
       });
     }
   }
 
   function playHighlightClip(highlight) {
     const chunk = currentChunk();
-    if (!highlight || !ensureCardAudio(chunk)) {
+    const media = ensureCardMedia(chunk);
+    if (!highlight || !media) {
       if (levelStatus) levelStatus.textContent = t("no_audio_card", "No audio available for this card.");
       return;
     }
@@ -1068,25 +1334,26 @@
     }
 
     stopAudio();
+    ensureCardMedia(chunk);
     applyAudioRate();
     const playFrom = Math.max(0, start);
     const finishAt = end;
     const seekAndPlay = () => {
       try {
-        audio.currentTime = playFrom;
+        media.currentTime = playFrom;
       } catch (_) {
         /* ignore */
       }
       stopListener = () => {
-        if (audio.currentTime >= finishAt) stopAudio();
+        if (media.currentTime >= finishAt) stopAudio();
       };
-      audio.addEventListener("timeupdate", stopListener);
+      media.addEventListener("timeupdate", stopListener);
       const durationMs = Math.max(
         50,
         ((finishAt - playFrom) * 1000) / getPlaybackRate() + 40
       );
       stopTimer = window.setTimeout(stopAudio, durationMs);
-      const playPromise = audio.play();
+      const playPromise = media.play();
       setPlayingUI(true);
       if (playPromise && typeof playPromise.catch === "function") {
         playPromise.catch(() => {
@@ -1096,14 +1363,14 @@
       }
     };
 
-    if (audio.readyState >= 1) seekAndPlay();
+    if (media.readyState >= 1) seekAndPlay();
     else {
       const onReady = () => {
-        audio.removeEventListener("loadedmetadata", onReady);
+        media.removeEventListener("loadedmetadata", onReady);
         seekAndPlay();
       };
-      audio.addEventListener("loadedmetadata", onReady);
-      audio.load();
+      media.addEventListener("loadedmetadata", onReady);
+      media.load();
     }
   }
 
@@ -1301,9 +1568,12 @@
       progressBar.style.width = `${((index + 1) / Math.max(queue.length, 1)) * 100}%`;
     }
 
+    const mediaUrl = chunkMediaUrl(chunk);
     if (playBtn) {
-      playBtn.disabled = !chunk.audio_url;
-      playBtn.textContent = chunk.audio_url ? t("play_card", "▶ Play card") : t("no_audio", "No audio");
+      playBtn.disabled = !mediaUrl;
+      playBtn.textContent = mediaUrl
+        ? t("play_card", "▶ Play card")
+        : t("no_audio", "No audio");
     }
     if (meaningBtn) {
       const hasMeaning = Boolean((chunk.sentence_meaning || "").trim());
@@ -1316,23 +1586,47 @@
       nextBtn.textContent = index >= queue.length - 1 ? t("finish", "Finish") : t("next", "Next →");
     }
 
-    if (audio) {
-      stopAudio();
-      if (chunk.audio_url) {
-        audio.src = chunk.audio_url;
-      } else {
-        audio.removeAttribute("src");
-        audio.load();
+    stopAudio();
+    if (chunkIsVideo(chunk) && video && mediaUrl) {
+      if (video.getAttribute("src") !== mediaUrl) {
+        video.src = mediaUrl;
       }
-      applyAudioRate();
+      setVideoDockVisible(true);
+      if (audio) {
+        audio.removeAttribute("src");
+        try {
+          audio.load();
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    } else {
+      setVideoDockVisible(false);
+      if (video) {
+        video.removeAttribute("src");
+        try {
+          video.load();
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (audio) {
+        if (mediaUrl) {
+          audio.src = mediaUrl;
+        } else {
+          audio.removeAttribute("src");
+          audio.load();
+        }
+      }
     }
+    applyAudioRate();
 
     renderLevels(chunk);
     if (typeInput) {
       window.setTimeout(() => typeInput.focus(), 30);
     }
 
-    if (studySettings.autoplay && chunk.audio_url) {
+    if (studySettings.autoplay && mediaUrl) {
       window.setTimeout(() => playFullCard({ startTimer: false }), 40);
     }
   }
@@ -1619,4 +1913,6 @@
       renderCard();
     });
   }
+
+  bindVideoDockInteractions();
 })();

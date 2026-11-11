@@ -1,5 +1,6 @@
 /* Mimivo service worker */
-const CACHE_VERSION = "mv-pwa-v1";
+/* __CACHE_VERSION__ is replaced by Django when serving /sw.js */
+const CACHE_VERSION = "__CACHE_VERSION__";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -9,6 +10,12 @@ const PRECACHE_URLS = [
   "/static/pwa/icons/icon-512.png",
   "/static/pwa/manifest.webmanifest",
 ];
+
+self.addEventListener("message", (event) => {
+  if (event && event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

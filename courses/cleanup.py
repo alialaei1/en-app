@@ -43,11 +43,13 @@ def cleanup_lesson_files(lesson) -> None:
     delete_file_field(lesson.media_file)
     delete_file_field(lesson.document_file)
     delete_file_field(lesson.source_audio)
+    delete_file_field(lesson.source_video)
     delete_path(lesson.media_workdir())
 
 
 def cleanup_chunk_files(chunk) -> None:
     delete_file_field(chunk.audio)
+    delete_file_field(getattr(chunk, "video", None))
 
 
 def cleanup_temp_upload_files(temp) -> None:

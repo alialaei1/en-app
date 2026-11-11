@@ -60,26 +60,66 @@ def map_chunks_to_words(chunks: list[str], words, excluded: set[int] | None = No
     return spans
 
 
-def cut_with_ffmpeg(src: Path, dst: Path, start: float, end: float) -> None:
+def cut_with_ffmpeg(
+    src: Path,
+    dst: Path,
+    start: float,
+    end: float,
+    *,
+    as_video: bool = False,
+) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-loglevel",
-        "error",
-        "-ss",
-        f"{start:.3f}",
-        "-to",
-        f"{end:.3f}",
-        "-i",
-        str(src),
-        "-vn",
-        "-c:a",
-        "libmp3lame",
-        "-q:a",
-        "2",
-        str(dst),
-    ]
+    if as_video:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{start:.3f}",
+            "-to",
+            f"{end:.3f}",
+            "-i",
+            str(src),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "28",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "96k",
+            "-ac",
+            "2",
+            "-movflags",
+            "+faststart",
+            "-pix_fmt",
+            "yuv420p",
+            "-avoid_negative_ts",
+            "make_zero",
+            str(dst),
+        ]
+    else:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{start:.3f}",
+            "-to",
+            f"{end:.3f}",
+            "-i",
+            str(src),
+            "-vn",
+            "-c:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
+            str(dst),
+        ]
     subprocess.run(cmd, check=True)
 
 
@@ -93,13 +133,17 @@ def align_and_cut(
     language: str = "en",
     padding_ms: int = 150,
     progress_callback=None,
+    cut_source: Path | None = None,
+    cut_as_video: bool = False,
 ) -> list[dict]:
     """
-    Align chunk texts to audio and cut per-chunk mp3 files.
+    Align chunk texts to audio and cut per-chunk media files.
     Returns dicts with: index, text, start, end, path, words.
     `words` timings are relative to the cut clip.
+    When `cut_as_video` is True, cuts MP4 clips from `cut_source` (or audio_path).
     Model comes from `model_name` or env/settings `WHISPER_MODEL`.
     """
+    source_for_cuts = cut_source or audio_path
     last_report = {"percent": -1, "at": 0.0}
 
     def report(percent: int, message: str, *, force: bool = False) -> None:
@@ -220,7 +264,7 @@ def align_and_cut(
     for i, (chunk, span) in enumerate(zip(chunks, spans), 1):
         report(
             80 + int((i / total) * 18),
-            f"Cutting audio clip {i} of {total}…",
+            f"Cutting {'video' if cut_as_video else 'audio'} clip {i} of {total}…",
             force=(i == 1 or i == total),
         )
         if span is None:
@@ -238,9 +282,10 @@ def align_and_cut(
         abs_start, abs_end, group = span
         start = max(0.0, abs_start - padding_ms / 1000)
         end = abs_end + padding_ms / 1000
-        name = f"{prefix}_{i:0{width}d}.mp3"
+        ext = "mp4" if cut_as_video else "mp3"
+        name = f"{prefix}_{i:0{width}d}.{ext}"
         path = out_dir / name
-        cut_with_ffmpeg(audio_path, path, start, end)
+        cut_with_ffmpeg(source_for_cuts, path, start, end, as_video=cut_as_video)
         outputs.append(
             {
                 "index": i,
@@ -251,5 +296,5 @@ def align_and_cut(
                 "words": relative_word_timings(group, start),
             }
         )
-    report(100, "Audio split complete", force=True)
+    report(100, "Video split complete" if cut_as_video else "Audio split complete", force=True)
     return outputs

@@ -251,7 +251,7 @@
     const items = state.highlights || [];
     highlightCount.textContent = t("n_highlights", "{n} highlights", { n: items.length });
     highlightsEmpty.classList.toggle("hidden", items.length > 0);
-    const hasAudio = Boolean(state.audio_url || audio?.src);
+    const hasAudio = Boolean(state.media_url || state.video_url || state.audio_url || audio?.src);
 
     highlightsList.innerHTML = items
       .map((h) => {
@@ -329,8 +329,9 @@
     if (displayLinesField && document.activeElement !== displayLinesField) {
       displayLinesField.value = state.display_lines != null ? state.display_lines : "";
     }
-    if (audio && state.audio_url && audio.getAttribute("src") !== state.audio_url) {
-      audio.src = state.audio_url;
+    const mediaUrl = state.media_url || state.video_url || state.audio_url || "";
+    if (audio && mediaUrl && audio.getAttribute("src") !== mediaUrl) {
+      audio.src = mediaUrl;
     }
     renderHighlightedText();
     renderHighlightCards();
@@ -564,7 +565,7 @@
       const start = card.querySelector(".start-input")?.value;
       const end = card.querySelector(".end-input")?.value;
       const canPlay =
-        Boolean(state.audio_url || audio?.src) &&
+        Boolean(state.media_url || state.video_url || state.audio_url || audio?.src) &&
         start !== "" &&
         end !== "" &&
         Number(end) >= Number(start);

@@ -29,7 +29,17 @@
           {{ ui.select_to_highlight }}
         </p>
 
-        {% if chunk.audio %}
+        {% if chunk.video %}
+          <div class="mb-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+            <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.video_clip|default:"Video clip" }}</p>
+            <video id="chunk-audio" controls playsinline class="w-full max-h-72 rounded-lg bg-black object-contain" src="{{ chunk.video.url }}"></video>
+            <p class="mt-2 text-xs text-slate-500">
+              {{ ui.word_timings_ready }}:
+              <span id="word-timing-count" dir="ltr">{{ chunk.word_timings|length }}</span>
+              · {{ ui.use_play_sync }}
+            </p>
+          </div>
+        {% elif chunk.audio %}
           <div class="mb-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
             <p class="mb-2 text-sm font-medium text-slate-300">{{ ui.audio_clip }}</p>
             <audio id="chunk-audio" controls class="w-full" src="{{ chunk.audio.url }}"></audio>
@@ -173,5 +183,5 @@
       padding: 0.05rem 0.2rem;
     }
   </style>
-  <script src="{% static 'js/chunk_edit.js' %}?v=8"></script>
+  <script src="{% static 'js/chunk_edit.js' %}"></script>
 {% endblock %}

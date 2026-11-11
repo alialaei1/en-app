@@ -22,7 +22,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="{% static 'pwa/icons/icon-192.png' %}" />
     <link rel="icon" type="image/png" sizes="512x512" href="{% static 'pwa/icons/icon-512.png' %}" />
     <link rel="stylesheet" href="{% static 'css/output.css' %}" />
-    <link rel="stylesheet" href="{% static 'css/theme.css' %}?v=25" />
+    <link rel="stylesheet" href="{% static 'css/theme.css' %}" />
     <script>
       (function () {
         try {
@@ -148,8 +148,8 @@
       </div>
     </div>
 
-    <script src="{% static 'js/confirm.js' %}?v=1"></script>
-    <script src="{% static 'js/pwa-register.js' %}?v=1"></script>
+    <script src="{% static 'js/confirm.js' %}"></script>
+    <script src="{% static 'js/pwa-register.js' %}"></script>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

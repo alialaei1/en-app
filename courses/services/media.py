@@ -76,6 +76,61 @@ def convert_to_audio(source: Path, destination: Path) -> Path:
     return destination
 
 
+def compress_video(
+    source: Path,
+    destination: Path,
+    *,
+    max_width: int = 1280,
+    crf: int = 28,
+    audio_bitrate: str = "96k",
+) -> Path:
+    """
+    Re-encode video to a compact H.264/AAC MP4 (capped width, modest CRF).
+    If the result is larger than the source and source is already MP4, keep the source.
+    """
+    require_ffmpeg()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    vf = f"scale='min({int(max_width)},iw)':-2"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        str(source),
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        str(int(crf)),
+        "-c:a",
+        "aac",
+        "-b:a",
+        audio_bitrate,
+        "-ac",
+        "2",
+        "-movflags",
+        "+faststart",
+        "-pix_fmt",
+        "yuv420p",
+        str(destination),
+    ]
+    subprocess.run(cmd, check=True)
+
+    if (
+        destination.exists()
+        and source.exists()
+        and source.suffix.lower() == ".mp4"
+        and destination.stat().st_size >= source.stat().st_size
+    ):
+        shutil.copyfile(source, destination)
+    return destination
+
+
 def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix in TEXT_EXTENSIONS:
