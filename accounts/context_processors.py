@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from .models import Profile, ensure_profile
 from .ui_i18n import ui_bundle
 
@@ -39,4 +41,5 @@ def user_preferences(request):
         "ui_learning_language": learning_language,
         "ui_rtl": app_language == Profile.AppLanguage.FA,
         "ui": ui_bundle(app_language),
+        "app_version": getattr(settings, "APP_VERSION", "1.0.0"),
     }

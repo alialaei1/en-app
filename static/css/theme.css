@@ -263,11 +263,34 @@ html[dir="rtl"] [dir="ltr"] {
   flex-shrink: 0;
 }
 
+.mv-brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .mv-brand-title {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
+}
+
+.mv-app-version {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--mv-accent) 28%, var(--mv-border));
+  background: color-mix(in srgb, var(--mv-accent) 12%, transparent);
+  color: var(--mv-accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 0.22rem 0.42rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .mv-brand-sub {

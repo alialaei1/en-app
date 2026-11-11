@@ -152,6 +152,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+# Shown in the app header (override with APP_VERSION in .env)
+APP_VERSION = (os.getenv("APP_VERSION") or "1.0.0").strip() or "1.0.0"
+
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
