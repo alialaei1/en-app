@@ -294,36 +294,12 @@ class Lesson(OrderedModel):
         )
 
     def get_study_settings(self) -> dict:
-        data = dict(self.DEFAULT_STUDY_SETTINGS)
-        raw = self.study_settings if isinstance(self.study_settings, dict) else {}
-        data.update(raw)
-        try:
-            rate = float(data.get("playback_rate", 1.0))
-        except (TypeError, ValueError):
-            rate = 1.0
-        data["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
-        data["autoplay"] = bool(data.get("autoplay", False))
-        return data
+        """Legacy lesson-wide defaults. Prefer UserLessonStudySettings for learners."""
+        return normalize_study_settings(self.study_settings)
 
     def update_study_settings(self, **updates) -> dict:
-        current = self.get_study_settings()
-        if "playback_rate" in updates and updates["playback_rate"] is not None:
-            try:
-                rate = float(updates["playback_rate"])
-            except (TypeError, ValueError) as exc:
-                raise ValueError("playback_rate must be a number") from exc
-            current["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
-        if "autoplay" in updates and updates["autoplay"] is not None:
-            value = updates["autoplay"]
-            if isinstance(value, str):
-                current["autoplay"] = value.strip().lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                    "on",
-                }
-            else:
-                current["autoplay"] = bool(value)
+        """Legacy lesson-wide defaults writer. Prefer UserLessonStudySettings."""
+        current = apply_study_settings_updates(self.study_settings, **updates)
         self.study_settings = current
         self.save(update_fields=["study_settings", "updated_at"])
         return current
@@ -367,22 +343,137 @@ class LessonChunk(OrderedModel):
     end_sec = models.FloatField(blank=True, null=True)
     # [{"word": "Hello", "start": 0.12, "end": 0.40}, ...] relative to this chunk's media
     word_timings = models.JSONField(default=list, blank=True)
-    # Study mastery for this piece: 1 = just starting, 7 = knows very well
+    # Legacy shared fields — learner progress lives on UserChunkStudyProgress.
     study_level = models.PositiveSmallIntegerField(
         blank=True,
         null=True,
-        help_text="Learner level for this piece (1–7).",
+        help_text="Deprecated: use UserChunkStudyProgress.study_level.",
     )
-    # Best typing completion time for this card (milliseconds)
     best_type_ms = models.PositiveIntegerField(
         blank=True,
         null=True,
-        help_text="Best typing completion time in milliseconds.",
+        help_text="Deprecated: use UserChunkStudyProgress.best_type_ms.",
     )
 
     class Meta(OrderedModel.Meta):
         verbose_name = "lesson chunk"
         verbose_name_plural = "lesson chunks"
+
+    def __str__(self) -> str:
+        return self.text[:60]
+
+    def siblings(self):
+        return LessonChunk.objects.filter(lesson=self.lesson)
+
+
+def normalize_study_settings(raw=None) -> dict:
+    data = dict(Lesson.DEFAULT_STUDY_SETTINGS)
+    if isinstance(raw, dict):
+        data.update(raw)
+    try:
+        rate = float(data.get("playback_rate", 1.0))
+    except (TypeError, ValueError):
+        rate = 1.0
+    data["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
+    data["autoplay"] = bool(data.get("autoplay", False))
+    return data
+
+
+def apply_study_settings_updates(current: dict, **updates) -> dict:
+    current = normalize_study_settings(current)
+    if "playback_rate" in updates and updates["playback_rate"] is not None:
+        try:
+            rate = float(updates["playback_rate"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("playback_rate must be a number") from exc
+        current["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
+    if "autoplay" in updates and updates["autoplay"] is not None:
+        value = updates["autoplay"]
+        if isinstance(value, str):
+            current["autoplay"] = value.strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        else:
+            current["autoplay"] = bool(value)
+    return current
+
+
+class UserLessonStudySettings(models.Model):
+    """Per-user study UI preferences for a lesson."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="lesson_study_settings",
+        on_delete=models.CASCADE,
+    )
+    lesson = models.ForeignKey(
+        Lesson,
+        related_name="user_study_settings",
+        on_delete=models.CASCADE,
+    )
+    settings = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "lesson"],
+                name="unique_user_lesson_study_settings",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} · lesson {self.lesson_id}"
+
+    def get_settings(self) -> dict:
+        return normalize_study_settings(self.settings)
+
+    def update_settings(self, **updates) -> dict:
+        current = apply_study_settings_updates(self.settings, **updates)
+        self.settings = current
+        self.save(update_fields=["settings", "updated_at"])
+        return current
+
+    @classmethod
+    def for_user_lesson(cls, user, lesson) -> "UserLessonStudySettings":
+        obj, _ = cls.objects.get_or_create(user=user, lesson=lesson)
+        return obj
+
+
+class UserChunkStudyProgress(models.Model):
+    """Per-user mastery/progress for one lesson card (chunk)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="chunk_study_progress",
+        on_delete=models.CASCADE,
+    )
+    chunk = models.ForeignKey(
+        LessonChunk,
+        related_name="user_progress",
+        on_delete=models.CASCADE,
+    )
+    study_level = models.PositiveSmallIntegerField(blank=True, null=True)
+    best_type_ms = models.PositiveIntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "chunk"],
+                name="unique_user_chunk_study_progress",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} · chunk {self.chunk_id}"
 
     def set_study_level(self, level: int | None) -> None:
         if level is None:
@@ -394,11 +485,7 @@ class LessonChunk(OrderedModel):
             self.study_level = level
         self.save(update_fields=["study_level", "updated_at"])
 
-    def record_type_time(self, time_ms: int) -> dict:
-        """
-        Save a typing attempt. Updates best_type_ms when improved.
-        Returns comparison + suggested level.
-        """
+    def record_type_time(self, time_ms: int, *, text: str = "") -> dict:
         from .services.study_scoring import suggest_study_level
 
         time_ms = max(1, int(time_ms))
@@ -408,7 +495,7 @@ class LessonChunk(OrderedModel):
             self.best_type_ms = time_ms
             self.save(update_fields=["best_type_ms", "updated_at"])
 
-        suggested = suggest_study_level(self.text or "", time_ms)
+        suggested = suggest_study_level(text or "", time_ms)
         return {
             "time_ms": time_ms,
             "previous_best_ms": previous_best,
@@ -417,11 +504,10 @@ class LessonChunk(OrderedModel):
             "suggested_level": suggested,
         }
 
-    def __str__(self) -> str:
-        return self.text[:60]
-
-    def siblings(self):
-        return LessonChunk.objects.filter(lesson=self.lesson)
+    @classmethod
+    def for_user_chunk(cls, user, chunk) -> "UserChunkStudyProgress":
+        obj, _ = cls.objects.get_or_create(user=user, chunk=chunk)
+        return obj
 
 
 class ChunkHighlight(OrderedModel):

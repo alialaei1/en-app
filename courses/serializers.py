@@ -10,7 +10,7 @@ def highlight_payload(highlight) -> dict:
     }
 
 
-def chunk_payload(chunk) -> dict:
+def chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
     highlights = [highlight_payload(item) for item in chunk.highlights.all()]
     video_url = chunk.video.url if getattr(chunk, "video", None) and chunk.video else ""
     audio_url = chunk.audio.url if chunk.audio else ""
@@ -22,8 +22,8 @@ def chunk_payload(chunk) -> dict:
         "display_lines": chunk.display_lines,
         "line_breaks": list(chunk.line_breaks or []),
         "color_spans": list(chunk.color_spans or []),
-        "study_level": chunk.study_level,
-        "best_type_ms": chunk.best_type_ms,
+        "study_level": study_level,
+        "best_type_ms": best_type_ms,
         "word_timing_count": len(chunk.word_timings or []),
         "video_url": video_url,
         "audio_url": audio_url or video_url,
@@ -33,8 +33,10 @@ def chunk_payload(chunk) -> dict:
     }
 
 
-def study_chunk_payload(chunk) -> dict:
-    data = chunk_payload(chunk)
+def study_chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
+    data = chunk_payload(
+        chunk, study_level=study_level, best_type_ms=best_type_ms
+    )
     data["has_sentence_meaning"] = bool((chunk.sentence_meaning or "").strip())
     data["has_audio"] = bool(data.get("media_url"))
     data["has_video"] = data.get("media_kind") == "video"
@@ -45,15 +47,39 @@ def study_chunk_payload(chunk) -> dict:
 def study_lesson_payload(
     lesson,
     *,
+    user=None,
     exit_url: str = "",
     level_url_template: str = "",
     record_url_template: str = "",
     settings_url: str = "",
 ) -> dict:
-    chunks = [
-        study_chunk_payload(chunk)
-        for chunk in lesson.chunks.prefetch_related("highlights").all()
-    ]
+    from .models import (
+        UserChunkStudyProgress,
+        UserLessonStudySettings,
+        normalize_study_settings,
+    )
+
+    chunk_qs = list(lesson.chunks.prefetch_related("highlights").all())
+    progress_by_chunk: dict[int, UserChunkStudyProgress] = {}
+    if user is not None and getattr(user, "is_authenticated", False) and chunk_qs:
+        progress_by_chunk = {
+            row.chunk_id: row
+            for row in UserChunkStudyProgress.objects.filter(
+                user=user, chunk_id__in=[c.pk for c in chunk_qs]
+            )
+        }
+
+    chunks = []
+    for chunk in chunk_qs:
+        progress = progress_by_chunk.get(chunk.pk)
+        chunks.append(
+            study_chunk_payload(
+                chunk,
+                study_level=progress.study_level if progress else None,
+                best_type_ms=progress.best_type_ms if progress else None,
+            )
+        )
+
     level_counts = {str(level): 0 for level in range(1, 8)}
     unrated = 0
     for chunk in chunks:
@@ -63,6 +89,13 @@ def study_lesson_payload(
             key = str(int(chunk["study_level"]))
             if key in level_counts:
                 level_counts[key] += 1
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        settings_row = UserLessonStudySettings.for_user_lesson(user, lesson)
+        settings_data = settings_row.get_settings()
+    else:
+        settings_data = normalize_study_settings(None)
+
     return {
         "id": lesson.pk,
         "title": lesson.title,
@@ -70,7 +103,7 @@ def study_lesson_payload(
         "level_url_template": level_url_template,
         "record_url_template": record_url_template,
         "settings_url": settings_url,
-        "settings": lesson.get_study_settings(),
+        "settings": settings_data,
         "total_cards": len(chunks),
         "level_counts": level_counts,
         "unrated_count": unrated,

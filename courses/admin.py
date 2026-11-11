@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import ChunkHighlight, Course, CourseEnrollment, Lesson, LessonChunk, Section
+from .models import (
+    ChunkHighlight,
+    Course,
+    CourseEnrollment,
+    Lesson,
+    LessonChunk,
+    Section,
+    UserChunkStudyProgress,
+    UserLessonStudySettings,
+)
 
 
 class SectionInline(admin.TabularInline):
@@ -73,3 +82,18 @@ class LessonChunkAdmin(admin.ModelAdmin):
 class ChunkHighlightAdmin(admin.ModelAdmin):
     list_display = ("text", "chunk", "start_char", "end_char", "start_sec", "end_sec")
     search_fields = ("text", "meaning")
+
+
+@admin.register(UserLessonStudySettings)
+class UserLessonStudySettingsAdmin(admin.ModelAdmin):
+    list_display = ("user", "lesson", "updated_at")
+    search_fields = ("user__email", "lesson__title")
+    raw_id_fields = ("user", "lesson")
+
+
+@admin.register(UserChunkStudyProgress)
+class UserChunkStudyProgressAdmin(admin.ModelAdmin):
+    list_display = ("user", "chunk", "study_level", "best_type_ms", "updated_at")
+    list_filter = ("study_level",)
+    search_fields = ("user__email", "chunk__text")
+    raw_id_fields = ("user", "chunk")

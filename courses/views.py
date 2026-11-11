@@ -40,6 +40,8 @@ from .models import (
     LessonChunk,
     Section,
     TempUpload,
+    UserChunkStudyProgress,
+    UserLessonStudySettings,
 )
 from .feed import feed_json, page_number, paginate_items, wants_feed_json
 from .serializers import chunk_payload, highlight_payload, study_lesson_payload
@@ -1060,6 +1062,19 @@ def lesson_detail(request, pk):
     course = lesson.section.course
     require_lesson_open(request.user, course)
     can_manage = can_manage_course(request.user, course)
+    chunks = list(lesson.chunks.all())
+    user_levels: dict[int, int] = {}
+    if request.user.is_authenticated and chunks:
+        user_levels = {
+            row.chunk_id: row.study_level
+            for row in UserChunkStudyProgress.objects.filter(
+                user=request.user,
+                chunk_id__in=[c.pk for c in chunks],
+                study_level__isnull=False,
+            )
+        }
+    for chunk in chunks:
+        chunk.user_study_level = user_levels.get(chunk.pk)
     return render(
         request,
         "courses/lesson_detail.html",
@@ -1069,7 +1084,7 @@ def lesson_detail(request, pk):
             "course": course,
             "can_manage": can_manage,
             "can_study": can_open_lesson(request.user, course),
-            "chunks": lesson.chunks.all(),
+            "chunks": chunks,
             "status_url": reverse("lesson_status", kwargs={"pk": lesson.pk}),
             "reorder_url": reverse("chunk_reorder", kwargs={"lesson_pk": lesson.pk}),
         },
@@ -1122,6 +1137,7 @@ def lesson_study(request, pk):
     )
     payload = study_lesson_payload(
         lesson,
+        user=request.user,
         exit_url=reverse("course_detail", kwargs={"pk": course.pk}),
         level_url_template=level_url_template,
         record_url_template=record_url_template,
@@ -1153,7 +1169,8 @@ def lesson_study_settings(request, pk):
     if "autoplay" in request.POST:
         updates["autoplay"] = request.POST.get("autoplay")
     try:
-        settings_data = lesson.update_study_settings(**updates)
+        row = UserLessonStudySettings.for_user_lesson(request.user, lesson)
+        settings_data = row.update_settings(**updates)
     except ValueError as exc:
         if _wants_json(request):
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)
@@ -1175,9 +1192,10 @@ def chunk_study_level(request, pk):
     )
     require_course_study(request.user, chunk.lesson.section.course)
     raw = (request.POST.get("study_level") or "").strip()
+    progress = UserChunkStudyProgress.for_user_chunk(request.user, chunk)
     try:
         level = int(raw)
-        chunk.set_study_level(level)
+        progress.set_study_level(level)
     except (TypeError, ValueError):
         if _wants_json(request):
             return JsonResponse(
@@ -1191,12 +1209,14 @@ def chunk_study_level(request, pk):
         return JsonResponse(
             {
                 "ok": True,
-                "message": f"Level set to {chunk.study_level}.",
-                "study_level": chunk.study_level,
+                "message": f"Level set to {progress.study_level}.",
+                "study_level": progress.study_level,
                 "chunk_id": chunk.pk,
             }
         )
-    messages.success(request, f'{t(request_app_lang(request), "level_set_to")} {chunk.study_level}.')
+    messages.success(
+        request, f'{t(request_app_lang(request), "level_set_to")} {progress.study_level}.'
+    )
     return redirect("lesson_study", pk=chunk.lesson_id)
 
 
@@ -1209,11 +1229,12 @@ def chunk_study_record(request, pk):
     )
     require_course_study(request.user, chunk.lesson.section.course)
     raw = (request.POST.get("time_ms") or "").strip()
+    progress = UserChunkStudyProgress.for_user_chunk(request.user, chunk)
     try:
         time_ms = int(float(raw))
         if time_ms <= 0:
             raise ValueError("time must be positive")
-        result = chunk.record_type_time(time_ms)
+        result = progress.record_type_time(time_ms, text=chunk.text or "")
     except (TypeError, ValueError):
         if _wants_json(request):
             return JsonResponse(

@@ -163,8 +163,8 @@
                       {% if chunk.color_spans %}
                         <span class="rounded-full bg-slate-800 px-2 py-0.5 text-violet-300">{{ chunk.color_spans|length }} {% if chunk.color_spans|length == 1 %}{{ ui.color }}{% else %}{{ ui.colors }}{% endif %}</span>
                       {% endif %}
-                      {% if chunk.study_level %}
-                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-emerald-300">{{ ui.level_of }} {{ chunk.study_level }}/7</span>
+                      {% if chunk.user_study_level %}
+                        <span class="rounded-full bg-slate-800 px-2 py-0.5 text-emerald-300">{{ ui.level_of }} {{ chunk.user_study_level }}/7</span>
                       {% endif %}
                       {% with hcount=chunk.highlights.count %}
                         {% if hcount %}
