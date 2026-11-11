@@ -27,45 +27,45 @@
       </a>
     </div>
 
-    <section id="study-setup" class="mv-card p-4 sm:p-7">
-      <h2 class="mv-section-title text-xl">{{ ui.ready_to_study }}</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-400" id="study-setup-lead" data-template="{{ ui.study_setup_lead }}">
-        <span id="setup-total" class="font-medium text-emerald-300">0</span>
-      </p>
+    <section id="study-setup" class="study-setup mv-card">
+      <div class="study-setup-head">
+        <h2 class="mv-section-title study-setup-title">{{ ui.ready_to_study }}</h2>
+        <p class="study-setup-lead" id="study-setup-lead" data-template="{{ ui.study_setup_lead }}">
+          <span id="setup-total" class="font-medium text-emerald-300">0</span>
+        </p>
+      </div>
 
-      <div class="mt-6 grid gap-3 sm:grid-cols-2">
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.total_cards }}</p>
-          <p id="setup-total-big" class="mt-1 text-3xl font-semibold text-white">0</p>
+      <div class="study-setup-stats">
+        <div class="study-setup-stat">
+          <p class="study-setup-stat-label">{{ ui.total_cards }}</p>
+          <p id="setup-total-big" class="study-setup-stat-value">0</p>
         </div>
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">{{ ui.selected_session }}</p>
-          <p id="setup-selected" class="mt-1 text-3xl font-semibold text-emerald-300">0</p>
+        <div class="study-setup-stat">
+          <p class="study-setup-stat-label">{{ ui.selected_session }}</p>
+          <p id="setup-selected" class="study-setup-stat-value is-accent">0</p>
         </div>
       </div>
 
-      <div class="mt-6">
-        <p class="mb-3 text-sm font-medium text-slate-300">{{ ui.cards_by_level }}</p>
-        <div id="setup-level-stats" class="space-y-2"></div>
+      <div class="study-setup-levels">
+        <div class="study-setup-levels-head">
+          <p class="study-setup-section-label">{{ ui.cards_by_level }}</p>
+          <div class="study-setup-level-tools">
+            <button type="button" id="setup-select-all" class="study-setup-mini-btn">{{ ui.select_all_levels }}</button>
+            <button type="button" id="setup-clear" class="study-setup-mini-btn">{{ ui.clear }}</button>
+          </div>
+        </div>
+        <div id="setup-level-stats" class="setup-level-grid"></div>
       </div>
 
-      <div class="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <button type="button" id="setup-select-all" class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700">
-          {{ ui.select_all_levels }}
-        </button>
-        <button type="button" id="setup-clear" class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700">
-          {{ ui.clear }}
-        </button>
-      </div>
-
-      <div class="mt-8 border-t border-slate-800 pt-6">
-        <h3 class="text-base font-semibold text-white">{{ ui.lesson_study_settings }}</h3>
-        <p class="mt-1 text-xs text-slate-500">{{ ui.settings_saved_lesson_hint }}</p>
-
-        <div class="mt-4 grid gap-4 sm:grid-cols-2">
-          <label class="block rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
-            <span class="text-xs uppercase tracking-wide text-slate-500">{{ ui.playback_speed }}</span>
-            <div class="mt-3 flex items-center gap-3">
+      <details class="study-setup-settings">
+        <summary class="study-setup-settings-summary">
+          <span>{{ ui.lesson_study_settings }}</span>
+          <span class="study-setup-settings-hint">{{ ui.settings_saved_lesson_hint }}</span>
+        </summary>
+        <div class="study-setup-settings-body">
+          <label class="study-setup-setting-card">
+            <span class="study-setup-stat-label">{{ ui.playback_speed }}</span>
+            <div class="study-setup-speed-row">
               <input
                 id="setting-playback-rate"
                 type="range"
@@ -75,14 +75,14 @@
                 value="1"
                 class="w-full accent-emerald-500"
               />
-              <span id="setting-playback-rate-label" class="w-12 text-end font-mono text-sm text-emerald-300">1.00×</span>
+              <span id="setting-playback-rate-label" class="study-setup-speed-label">1.00×</span>
             </div>
           </label>
 
-          <label class="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-4">
+          <label class="study-setup-setting-card study-setup-autoplay">
             <span>
-              <span class="block text-xs uppercase tracking-wide text-slate-500">{{ ui.autoplay_on_card }}</span>
-              <span class="mt-1 block text-sm text-slate-300">{{ ui.autoplay_help }}</span>
+              <span class="study-setup-stat-label">{{ ui.autoplay_on_card }}</span>
+              <span class="study-setup-autoplay-help">{{ ui.autoplay_help }}</span>
             </span>
             <input
               id="setting-autoplay"
@@ -90,57 +90,45 @@
               class="h-5 w-5 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500/40"
             />
           </label>
-        </div>
 
-        <div class="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            id="settings-save"
-            class="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-200"
-          >
-            {{ ui.save_settings }}
-          </button>
-          <p id="settings-status" class="text-xs text-slate-500"></p>
+          <div class="study-setup-settings-actions">
+            <button type="button" id="settings-save" class="study-setup-mini-btn is-save">
+              {{ ui.save_settings }}
+            </button>
+            <p id="settings-status" class="study-setup-settings-status"></p>
+          </div>
         </div>
-      </div>
+      </details>
 
-      <div class="mt-6 grid gap-2 sm:flex sm:flex-wrap">
-        <button
-          type="button"
-          id="setup-start-all"
-          class="w-full rounded-xl bg-emerald-500 px-5 py-3.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400 sm:w-auto"
-        >
+      <div class="study-setup-actions">
+        <button type="button" id="setup-start-all" class="study-setup-start-btn is-primary">
           {{ ui.study_all_cards }}
         </button>
-        <button
-          type="button"
-          id="setup-start-selected"
-          class="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-5 py-3.5 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-        >
+        <button type="button" id="setup-start-selected" class="study-setup-start-btn is-secondary" disabled>
           {{ ui.study_selected_levels }}
         </button>
       </div>
     </section>
 
-    <div id="study-session" class="hidden">
-      <div class="study-progress-row mb-3 flex flex-col gap-2 text-sm text-slate-400 sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+    <div id="study-session" class="study-session hidden">
+      <div class="study-progress-row">
         <p id="study-progress">{{ ui.card_of }}</p>
-        <div class="h-2 w-full overflow-hidden rounded-full bg-slate-800 sm:w-56">
-          <div id="study-progress-bar" class="h-full w-0 rounded-full bg-emerald-500 transition-all duration-300"></div>
+        <div class="study-progress-track">
+          <div id="study-progress-bar" class="study-progress-fill"></div>
         </div>
       </div>
 
-      <section class="study-card-panel overflow-visible rounded-2xl border border-slate-800 bg-slate-900/70 p-3 shadow-[0_0_0_1px_rgba(15,23,42,0.4)] sm:rounded-3xl sm:p-7">
+      <section class="study-card-panel">
         <audio id="study-audio" preload="metadata" class="hidden"></audio>
 
-        <div class="study-timer-row mb-3 flex flex-wrap items-end justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 sm:mb-4 sm:gap-3 sm:px-4 sm:py-3">
+        <div class="study-timer-row">
           <div>
-            <p class="text-[0.65rem] uppercase tracking-wide text-slate-500 sm:text-xs">{{ ui.timer }}</p>
-            <p id="study-timer" class="mt-0.5 font-mono text-xl font-semibold tabular-nums text-emerald-300 sm:mt-1 sm:text-2xl">0.00s</p>
+            <p class="study-timer-label">{{ ui.timer }}</p>
+            <p id="study-timer" class="study-timer-value">0.00s</p>
           </div>
-          <div class="text-end text-[0.7rem] text-slate-400 sm:text-xs">
+          <div class="study-timer-meta">
             <p id="study-best-record">{{ ui.best_label }}: —</p>
-            <p id="study-timer-status" class="mt-0.5 text-slate-500 sm:mt-1">{{ ui.waiting_play_meaning }}</p>
+            <p id="study-timer-status">{{ ui.waiting_play_meaning }}</p>
           </div>
         </div>
 
@@ -150,64 +138,52 @@
           dir="ltr"
         ></div>
 
-        <div class="study-media-actions mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap">
-          <button
-            type="button"
-            id="study-play"
-            class="col-span-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40 sm:col-auto sm:py-2.5"
-          >
+        <div class="study-media-actions">
+          <button type="button" id="study-play" class="study-btn study-btn-play">
             {{ ui.play_card }}
           </button>
-          <button
-            type="button"
-            id="study-stop"
-            class="rounded-xl bg-rose-500/15 px-4 py-3 text-sm font-medium text-rose-200 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
-            disabled
-          >
+          <button type="button" id="study-pause" class="study-btn study-btn-pause" disabled>
+            {{ ui.pause }}
+          </button>
+          <button type="button" id="study-stop" class="study-btn study-btn-stop" disabled>
             {{ ui.stop }}
           </button>
-          <button
-            type="button"
-            id="study-toggle-meaning"
-            class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
-          >
+          <button type="button" id="study-toggle-meaning" class="study-btn study-btn-ghost">
             {{ ui.show_meaning }}
           </button>
         </div>
 
-        <div class="mt-4 sm:mt-5">
-          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label class="block text-sm font-medium text-slate-300" for="study-type-input">{{ ui.type_what_you_hear }}</label>
+        <div class="study-type-block">
+          <div class="study-type-head">
+            <label class="study-type-label" for="study-type-input">{{ ui.type_what_you_hear }}</label>
             <button
               type="button"
               id="study-speech-btn"
-              class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-emerald-500/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+              class="study-speech-btn"
               aria-pressed="false"
               title="{{ ui.speech_start }}"
             >
-              <span id="study-speech-icon" aria-hidden="true" class="inline-block h-2 w-2 rounded-full bg-slate-500"></span>
+              <span id="study-speech-icon" aria-hidden="true" class="study-speech-dot"></span>
               <span id="study-speech-label">{{ ui.speech_start }}</span>
             </button>
           </div>
-          <div class="relative">
-            <textarea
-              id="study-type-input"
-              rows="3"
-              dir="ltr"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-              placeholder="{{ ui.type_placeholder }}"
-              class="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-3 pe-3.5 text-base leading-7 text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 sm:px-4"
-            ></textarea>
-          </div>
-          <p id="study-type-hint" class="mt-2 text-xs leading-5 text-slate-500">
+          <textarea
+            id="study-type-input"
+            rows="2"
+            dir="ltr"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="{{ ui.type_placeholder }}"
+            class="study-type-input"
+          ></textarea>
+          <p id="study-type-hint" class="study-type-hint">
             {{ ui.type_hint }}
           </p>
         </div>
 
-        <div class="study-level-block mt-5 border-t border-slate-800 pt-4 sm:mt-6 sm:pt-5">
+        <div class="study-level-block">
           <div class="study-level-head">
             <p class="study-level-title">{{ ui.your_level }}</p>
             <p id="study-level-status" class="study-level-status"></p>
@@ -219,27 +195,15 @@
           </div>
         </div>
 
-        <div class="study-nav-actions mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-          <button
-            type="button"
-            id="study-prev"
-            class="rounded-xl bg-slate-800 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
-          >
+        <div class="study-nav-actions">
+          <button type="button" id="study-prev" class="study-btn study-btn-ghost">
             {{ ui.previous }}
           </button>
-          <button
-            type="button"
-            id="study-next"
-            class="rounded-xl bg-emerald-500/90 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40 sm:py-2.5"
-          >
+          <button type="button" id="study-next" class="study-btn study-btn-next">
             {{ ui.next }}
           </button>
         </div>
       </section>
-
-      <p class="mt-4 text-center text-xs text-slate-500">
-        {{ ui.study_footer_hint }}
-      </p>
     </div>
 
     <div

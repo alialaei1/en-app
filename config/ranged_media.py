@@ -7,9 +7,12 @@ import os
 import re
 
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.utils._os import safe_join
 from django.utils.http import http_date
+
+from courses.media_access import user_can_access_media_path
 
 RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)", re.IGNORECASE)
 
@@ -54,6 +57,11 @@ def _base_headers(response, *, content_type: str, encoding: str | None, last_mod
 
 def ranged_media_serve(request, path: str):
     """Drop-in replacement for django.views.static.serve with byte-range support."""
+    if not user_can_access_media_path(request.user, path):
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Log in to access this media.")
+        raise PermissionDenied("You do not have permission to access this media.")
+
     try:
         fullpath = safe_join(str(settings.MEDIA_ROOT), path)
     except ValueError as exc:

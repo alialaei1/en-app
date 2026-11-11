@@ -12,11 +12,13 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from .access import (
     can_manage_course,
+    can_open_lesson,
     can_study_course,
     is_enrolled,
     require_course_manage,
     require_course_study,
     require_course_view,
+    require_lesson_open,
 )
 from .forms import (
     ChunkHighlightForm,
@@ -816,6 +818,7 @@ def lesson_create(request, section_pk):
     )
 
 
+@login_required
 def lesson_detail(request, pk):
     lesson = get_object_or_404(
         Lesson.objects.select_related("section__course", "section__course__owner").prefetch_related(
@@ -824,7 +827,7 @@ def lesson_detail(request, pk):
         pk=pk,
     )
     course = lesson.section.course
-    require_course_view(request.user, course)
+    require_lesson_open(request.user, course)
     can_manage = can_manage_course(request.user, course)
     return render(
         request,
@@ -834,6 +837,7 @@ def lesson_detail(request, pk):
             "section": lesson.section,
             "course": course,
             "can_manage": can_manage,
+            "can_study": can_open_lesson(request.user, course),
             "chunks": lesson.chunks.all(),
             "status_url": reverse("lesson_status", kwargs={"pk": lesson.pk}),
             "reorder_url": reverse("chunk_reorder", kwargs={"lesson_pk": lesson.pk}),

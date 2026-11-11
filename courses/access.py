@@ -38,6 +38,11 @@ def can_study_course(user, course: Course) -> bool:
     return is_enrolled(user, course)
 
 
+def can_open_lesson(user, course: Course) -> bool:
+    """Open lesson page (read-only for learners): owner/staff or enrolled."""
+    return can_study_course(user, course)
+
+
 def require_course_manage(user, course: Course) -> None:
     if not can_manage_course(user, course):
         raise PermissionDenied("You do not have permission to manage this course.")
@@ -55,6 +60,16 @@ def require_course_study(user, course: Course) -> None:
         raise Http404("Course not found.")
     if not can_study_course(user, course):
         raise PermissionDenied("Enroll in this course to study.")
+
+
+def require_lesson_open(user, course: Course) -> None:
+    """Enrolled learners (and managers) may open lesson pages; others cannot."""
+    if not user.is_authenticated:
+        raise PermissionDenied("Log in to open this lesson.")
+    if not can_view_course(user, course):
+        raise Http404("Course not found.")
+    if not can_open_lesson(user, course):
+        raise PermissionDenied("Enroll in this course to open lessons.")
 
 
 def get_managed_course(user, pk: int) -> Course:

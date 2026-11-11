@@ -14,3 +14,15 @@ If you cannot access the panel,
 release the following port (13519|888|80|443|20|21) in the security group
 ==================================================================
 Time consumed: 1 Minute!
+
+location /static/ {
+    alias /www/wwwroot/en-app/staticfiles/;
+    expires 12h;
+    access_log off;
+}
+
+location /media/ {
+    alias /www/wwwroot/en-app/media/;
+    expires 7d;
+    access_log off;
+}

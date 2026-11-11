@@ -63,8 +63,10 @@
   const resultSuggest = document.getElementById("study-result-suggest");
   let resultToastTimer = 0;
   const playBtn = document.getElementById("study-play");
+  const pauseBtn = document.getElementById("study-pause");
   const stopBtn = document.getElementById("study-stop");
   const meaningBtn = document.getElementById("study-toggle-meaning");
+  let mediaSessionState = "stopped";
   const levelsEl = document.getElementById("study-levels");
   const levelStatus = document.getElementById("study-level-status");
   const prevBtn = document.getElementById("study-prev");
@@ -79,7 +81,7 @@
   const videoSizeSmBtn = document.getElementById("study-video-size-sm");
   const videoSizeMdBtn = document.getElementById("study-video-size-md");
 
-  const VIDEO_DOCK_KEY = "mimivo.studyVideoDock.v1";
+  const VIDEO_DOCK_KEY = "mimivo.studyVideoDock.v2";
   let videoDockState = {
     x: null,
     y: null,
@@ -304,13 +306,13 @@
   }
 
   function defaultDockPosition(w, h) {
+    // Physical bottom-right corner (same in LTR/RTL layouts).
     const margin = 12;
-    const safeBottom = 16;
-    const x = Math.max(margin, (window.innerWidth || 360) - w - margin);
-    const y = Math.max(
-      margin,
-      (window.innerHeight || 640) - h - safeBottom - (window.visualViewport ? 0 : 0)
-    );
+    const safeBottom = 18;
+    const vw = window.innerWidth || 360;
+    const vh = window.innerHeight || 640;
+    const x = Math.max(margin, vw - w - margin);
+    const y = Math.max(margin, vh - h - safeBottom);
     return { x, y };
   }
 
@@ -1239,10 +1241,61 @@
     else startSpeechRecognition();
   }
 
-  function setPlayingUI(isPlaying) {
-    if (stopBtn) stopBtn.disabled = !isPlaying;
-    if (playBtn && chunkMediaUrl(currentChunk())) {
-      playBtn.textContent = isPlaying ? t("playing", "▶ Playing…") : t("play_card", "▶ Play card");
+  function setPlayingUI(state) {
+    const next =
+      state === true ? "playing" : state === false ? "stopped" : state || "stopped";
+    mediaSessionState = next;
+    const hasMedia = Boolean(chunkMediaUrl(currentChunk()));
+    if (playBtn) {
+      playBtn.disabled = !hasMedia;
+      if (next === "paused") {
+        playBtn.textContent = t("resume", "▶ Resume");
+      } else if (next === "playing") {
+        playBtn.textContent = t("playing", "▶ Playing…");
+      } else {
+        playBtn.textContent = t("play_card", "▶ Play");
+      }
+    }
+    if (pauseBtn) pauseBtn.disabled = !hasMedia || next !== "playing";
+    if (stopBtn) stopBtn.disabled = !hasMedia || next === "stopped";
+  }
+
+  function pauseMedia() {
+    const chunk = currentChunk();
+    const media = activeMediaEl(chunk);
+    if (!media || mediaSessionState !== "playing") return;
+    media.pause();
+    if (stopTimer) {
+      window.clearTimeout(stopTimer);
+      stopTimer = null;
+    }
+    setPlayingUI("paused");
+  }
+
+  function resumeMedia({ startTimer = true } = {}) {
+    const chunk = currentChunk();
+    const media = ensureCardMedia(chunk);
+    if (!media) return;
+    if (startTimer) ensureCardTimerStarted();
+    applyAudioRate();
+    if (!endedListener) {
+      endedListener = () => {
+        endedListener = null;
+        setPlayingUI("stopped");
+      };
+      media.addEventListener("ended", endedListener);
+    }
+    const playPromise = media.play();
+    setPlayingUI("playing");
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        setPlayingUI("paused");
+        if (levelStatus) {
+          levelStatus.textContent = chunkIsVideo(chunk)
+            ? t("could_not_play_video", "Could not play video.")
+            : t("could_not_play_audio", "Could not play audio.");
+        }
+      });
     }
   }
 
@@ -1264,7 +1317,7 @@
     });
     stopListener = null;
     endedListener = null;
-    setPlayingUI(false);
+    setPlayingUI("stopped");
   }
 
   function ensureCardMedia(chunk) {
@@ -1292,6 +1345,10 @@
 
   function playFullCard({ startTimer = true } = {}) {
     const chunk = currentChunk();
+    if (mediaSessionState === "paused") {
+      resumeMedia({ startTimer });
+      return;
+    }
     const media = ensureCardMedia(chunk);
     if (!media) return;
     if (startTimer) ensureCardTimerStarted();
@@ -1300,11 +1357,11 @@
     applyAudioRate();
     endedListener = () => {
       endedListener = null;
-      setPlayingUI(false);
+      setPlayingUI("stopped");
     };
     media.addEventListener("ended", endedListener);
     const playPromise = media.play();
-    setPlayingUI(true);
+    setPlayingUI("playing");
     if (playPromise && typeof playPromise.catch === "function") {
       playPromise.catch(() => {
         stopAudio();
@@ -1354,7 +1411,7 @@
       );
       stopTimer = window.setTimeout(stopAudio, durationMs);
       const playPromise = media.play();
-      setPlayingUI(true);
+      setPlayingUI("playing");
       if (playPromise && typeof playPromise.catch === "function") {
         playPromise.catch(() => {
           stopAudio();
@@ -1390,12 +1447,54 @@
           return `<div class="study-line">${painted || "&nbsp;"}</div>`;
         })
         .join("") || '<div class="study-line">&nbsp;</div>';
+    window.requestAnimationFrame(positionActiveHighlightPop);
   }
 
   function findHighlight(id) {
     const chunk = currentChunk();
     if (!chunk) return null;
     return (chunk.highlights || []).find((item) => item.id === Number(id)) || null;
+  }
+
+  function positionActiveHighlightPop() {
+    if (!textEl || activeHighlightId == null) return;
+    const wrap = textEl.querySelector(
+      `.study-hl-wrap[data-id="${activeHighlightId}"]`
+    );
+    if (!wrap) return;
+    const mark = wrap.querySelector("mark.study-mark");
+    const pop = wrap.querySelector(".study-hl-pop");
+    if (!mark || !pop) return;
+
+    pop.classList.remove("is-above");
+    pop.style.left = "0px";
+    pop.style.top = "0px";
+
+    const markRect = mark.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    const gap = 8;
+    const margin = 8;
+    const vw = window.innerWidth || 360;
+    const vh = window.innerHeight || 640;
+
+    let top = markRect.bottom + gap;
+    let placeAbove = false;
+    if (top + popRect.height > vh - margin) {
+      const above = markRect.top - gap - popRect.height;
+      if (above >= margin) {
+        top = above;
+        placeAbove = true;
+      } else {
+        top = Math.max(margin, vh - popRect.height - margin);
+      }
+    }
+
+    let left = markRect.left + markRect.width / 2 - popRect.width / 2;
+    left = Math.max(margin, Math.min(left, vw - popRect.width - margin));
+
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+    pop.classList.toggle("is-above", placeAbove);
   }
 
   function setActiveHighlight(highlight, { rerender = true } = {}) {
@@ -1409,6 +1508,7 @@
           activeHighlightId != null && Number(node.dataset.id) === activeHighlightId
         );
       });
+      window.requestAnimationFrame(positionActiveHighlightPop);
     }
   }
 
@@ -1453,32 +1553,28 @@
       .map((row) => {
         const disabled = row.count === 0;
         const checked = !disabled && selectedKeys.has(row.key);
+        const shortLabel = row.key === "unrated" ? "—" : row.key;
+        const titleParts = [row.label];
+        if (row.hint) titleParts.push(row.hint);
+        titleParts.push(
+          row.count === 1
+            ? t("card_count", "{n} card", { n: row.count })
+            : t("cards_count", "{n} cards", { n: row.count })
+        );
         return `
-          <label class="setup-level-row flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 ${
-            disabled ? "is-disabled" : ""
-          }">
-            <span class="flex min-w-0 items-center gap-3">
-              <input
-                type="checkbox"
-                class="setup-level-check h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500"
-                data-key="${row.key}"
-                ${checked ? "checked" : ""}
-                ${disabled ? "disabled" : ""}
-              />
-              <span>
-                <span class="block text-sm font-medium text-slate-100">${escapeHtml(row.label)}</span>
-                ${
-                  row.hint
-                    ? `<span class="block text-xs text-slate-500">${escapeHtml(row.hint)}</span>`
-                    : ""
-                }
-              </span>
-            </span>
-            <span class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">${
-              row.count === 1
-                ? t("card_count", "{n} card", { n: row.count })
-                : t("cards_count", "{n} cards", { n: row.count })
-            }</span>
+          <label
+            class="setup-level-chip${disabled ? " is-disabled" : ""}${checked ? " is-checked" : ""}"
+            title="${escapeHtml(titleParts.join(" · "))}"
+          >
+            <input
+              type="checkbox"
+              class="setup-level-check"
+              data-key="${row.key}"
+              ${checked ? "checked" : ""}
+              ${disabled ? "disabled" : ""}
+            />
+            <span class="setup-level-chip-label">${escapeHtml(shortLabel)}</span>
+            <span class="setup-level-chip-count">${row.count}</span>
           </label>
         `;
       })
@@ -1503,6 +1599,8 @@
     revealedHighlightIds = new Set();
     if (setupEl) setupEl.classList.add("hidden");
     if (sessionEl) sessionEl.classList.remove("hidden");
+    root.classList.add("is-studying");
+    document.body.classList.add("mv-studying");
     renderCard();
   }
 
@@ -1572,9 +1670,12 @@
     if (playBtn) {
       playBtn.disabled = !mediaUrl;
       playBtn.textContent = mediaUrl
-        ? t("play_card", "▶ Play card")
+        ? t("play_card", "▶ Play")
         : t("no_audio", "No audio");
     }
+    if (pauseBtn) pauseBtn.disabled = true;
+    if (stopBtn) stopBtn.disabled = true;
+    mediaSessionState = "stopped";
     if (meaningBtn) {
       const hasMeaning = Boolean((chunk.sentence_meaning || "").trim());
       meaningBtn.disabled = !hasMeaning;
@@ -1675,6 +1776,8 @@
       if (!input || input.disabled) return;
       if (input.checked) selectedKeys.add(input.dataset.key);
       else selectedKeys.delete(input.dataset.key);
+      const chip = input.closest(".setup-level-chip");
+      if (chip) chip.classList.toggle("is-checked", input.checked);
       updateSetupSelected();
     });
   }
@@ -1731,6 +1834,10 @@
 
   if (playBtn) {
     playBtn.addEventListener("click", () => playFullCard({ startTimer: true }));
+  }
+
+  if (pauseBtn) {
+    pauseBtn.addEventListener("click", () => pauseMedia());
   }
 
   if (stopBtn) {
@@ -1872,14 +1979,47 @@
     if (!activeHighlightId) return;
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     const inside = path.some(
-      (node) => node && node.classList && node.classList.contains("study-hl-wrap")
+      (node) =>
+        node &&
+        node.classList &&
+        (node.classList.contains("study-hl-wrap") || node.classList.contains("study-hl-pop"))
     );
     if (inside) return;
-    if (event.target && event.target.closest && event.target.closest(".study-hl-wrap")) {
+    if (
+      event.target &&
+      event.target.closest &&
+      (event.target.closest(".study-hl-wrap") || event.target.closest(".study-hl-pop"))
+    ) {
       return;
     }
     setActiveHighlight(null, { rerender: true });
   });
+
+  if (textEl) {
+    textEl.addEventListener(
+      "scroll",
+      () => {
+        if (activeHighlightId != null) positionActiveHighlightPop();
+      },
+      { passive: true }
+    );
+  }
+
+  window.addEventListener(
+    "resize",
+    () => {
+      if (activeHighlightId != null) positionActiveHighlightPop();
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (activeHighlightId != null) positionActiveHighlightPop();
+    },
+    { passive: true, capture: true }
+  );
 
   if (resultPanel) {
     resultPanel.addEventListener("click", hideCompletionResult);

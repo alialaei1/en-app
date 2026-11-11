@@ -154,7 +154,11 @@
                         </span>
                       {% endif %}
                       <div class="min-w-0" dir="ltr" lang="en">
-                        <a href="{% url 'lesson_detail' lesson.pk %}" class="font-medium text-slate-100 hover:text-emerald-300">{{ lesson.title }}</a>
+                        {% if is_enrolled or can_manage %}
+                          <a href="{% url 'lesson_detail' lesson.pk %}" class="font-medium text-slate-100 hover:text-emerald-300">{{ lesson.title }}</a>
+                        {% else %}
+                          <span class="font-medium text-slate-100">{{ lesson.title }}</span>
+                        {% endif %}
                         <p class="mt-1 text-sm text-slate-500"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
                           {{ lesson.chunk_count }} {{ ui.items }}
                           ·
@@ -182,7 +186,9 @@
                           <a href="{% url 'login' %}?next={% url 'lesson_study' lesson.pk %}" class="mv-btn mv-btn-primary" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">{{ ui.login_to_study }}</a>
                         {% endif %}
                       {% endif %}
-                      <a href="{% url 'lesson_detail' lesson.pk %}" class="mv-btn mv-btn-ghost" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">{{ ui.open }}</a>
+                      {% if is_enrolled or can_manage %}
+                        <a href="{% url 'lesson_detail' lesson.pk %}" class="mv-btn mv-btn-ghost" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">{{ ui.open }}</a>
+                      {% endif %}
                       {% if can_manage %}
                         <a href="{% url 'lesson_edit' lesson.pk %}" class="mv-btn mv-btn-ghost" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">{{ ui.edit }}</a>
                         <form method="post" action="{% url 'lesson_delete' lesson.pk %}" class="contents" data-confirm="{{ ui.confirm_delete_lesson }}">
