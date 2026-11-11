@@ -408,19 +408,15 @@ def course_enroll(request, pk):
         if enrollment and enrollment.is_approved:
             messages.info(request, t(lang, "already_enrolled"))
         else:
-            if enrollment:
-                enrollment.status = CourseEnrollment.Status.APPROVED
-                enrollment.responded_at = timezone.now()
-                enrollment.responded_by = None
-                enrollment.save(
-                    update_fields=["status", "responded_at", "responded_by"]
-                )
-            else:
-                CourseEnrollment.objects.create(
-                    user=request.user,
-                    course=course,
-                    status=CourseEnrollment.Status.APPROVED,
-                )
+            CourseEnrollment.objects.update_or_create(
+                user=request.user,
+                course=course,
+                defaults={
+                    "status": CourseEnrollment.Status.APPROVED,
+                    "responded_at": timezone.now(),
+                    "responded_by": None,
+                },
+            )
             messages.success(
                 request, f'{t(lang, "enrolled_in")} “{course.title}”.'
             )
@@ -432,19 +428,15 @@ def course_enroll(request, pk):
     elif enrollment and enrollment.is_pending:
         messages.info(request, t(lang, "enroll_request_pending"))
     else:
-        if enrollment:
-            enrollment.status = CourseEnrollment.Status.PENDING
-            enrollment.responded_at = None
-            enrollment.responded_by = None
-            enrollment.save(
-                update_fields=["status", "responded_at", "responded_by"]
-            )
-        else:
-            CourseEnrollment.objects.create(
-                user=request.user,
-                course=course,
-                status=CourseEnrollment.Status.PENDING,
-            )
+        CourseEnrollment.objects.update_or_create(
+            user=request.user,
+            course=course,
+            defaults={
+                "status": CourseEnrollment.Status.PENDING,
+                "responded_at": None,
+                "responded_by": None,
+            },
+        )
         messages.success(request, t(lang, "enroll_request_sent"))
     return _redirect_next_or(request, "course_detail", pk=course.pk)
 
