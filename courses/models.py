@@ -111,6 +111,11 @@ class Course(OrderedModel):
 
 
 class CourseEnrollment(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         related_name="course_enrollments",
@@ -120,6 +125,20 @@ class CourseEnrollment(models.Model):
         Course,
         related_name="enrollments",
         on_delete=models.CASCADE,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.APPROVED,
+        db_index=True,
+    )
+    responded_at = models.DateTimeField(blank=True, null=True)
+    responded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="enrollment_responses",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -133,7 +152,15 @@ class CourseEnrollment(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.user_id} → {self.course_id}"
+        return f"{self.user_id} → {self.course_id} ({self.status})"
+
+    @property
+    def is_approved(self) -> bool:
+        return self.status == self.Status.APPROVED
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == self.Status.PENDING
 
 
 class CourseReview(models.Model):

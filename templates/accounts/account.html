@@ -48,22 +48,20 @@
             {% endif %}
           </div>
 
-          <div class="mv-account-fields">
-            <div class="mv-account-field">
-              <label class="mv-account-label" for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
-              <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.display_name }}</div>
-              {% if form.display_name.errors %}
-                <p class="mv-account-error">{{ form.display_name.errors|striptags }}</p>
-              {% endif %}
-            </div>
+          <div class="mv-account-name-wrap mv-account-field">
+            <label class="mv-account-label" for="{{ form.display_name.id_for_label }}">{{ form.display_name.label }}</label>
+            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.display_name }}</div>
+            {% if form.display_name.errors %}
+              <p class="mv-account-error">{{ form.display_name.errors|striptags }}</p>
+            {% endif %}
+          </div>
 
-            <div class="mv-account-field">
-              <label class="mv-account-label" for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
-              <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.bio }}</div>
-              {% if form.bio.errors %}
-                <p class="mv-account-error">{{ form.bio.errors|striptags }}</p>
-              {% endif %}
-            </div>
+          <div class="mv-account-bio-wrap mv-account-field">
+            <label class="mv-account-label" for="{{ form.bio.id_for_label }}">{{ form.bio.label }}</label>
+            <div{% if ui_rtl %} dir="rtl"{% endif %}>{{ form.bio }}</div>
+            {% if form.bio.errors %}
+              <p class="mv-account-error">{{ form.bio.errors|striptags }}</p>
+            {% endif %}
           </div>
         </div>
       </section>

@@ -1,7 +1,7 @@
 {% for course in courses %}
   <a
     href="{% url 'course_detail' course.pk %}"
-    class="mv-media mv-course-cover-square group rounded-lg sm:rounded-xl"
+    class="mv-media mv-course-cover-square group relative rounded-lg sm:rounded-xl"
     title="{{ course.title }}"
     aria-label="{{ course.title }}"
   >
@@ -10,6 +10,12 @@
     {% else %}
       <span class="mv-media-fallback text-[10px] sm:text-xs" dir="ltr">{{ course.title|truncatechars:36 }}</span>
     {% endif %}
+    <span
+      class="pointer-events-none absolute start-1.5 top-1.5 z-[1] rounded-full border px-1.5 py-0.5 text-[0.58rem] font-semibold leading-none shadow-sm{% if course.visibility == 'private' %} border-amber-500/35 bg-amber-500/90 text-amber-50{% else %} border-slate-500/40 bg-slate-900/80 text-slate-100{% endif %}"
+      {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
+    >
+      {% if course.visibility == 'private' %}{{ ui.private }}{% else %}{{ ui.public }}{% endif %}
+    </span>
     <span class="pointer-events-none absolute inset-0 bg-slate-950/0 transition group-hover:bg-slate-950/45"></span>
     <span class="pointer-events-none absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-slate-950/85 to-transparent p-2 group-hover:block">
       <span class="block truncate text-[11px] font-medium text-white" dir="ltr">{{ course.title }}</span>

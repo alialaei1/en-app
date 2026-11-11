@@ -34,20 +34,24 @@ class CourseForm(forms.ModelForm):
             "content_kind": "Content type",
         }
         help_texts = {
-            "visibility": "Public courses appear in Explore with your name. Private courses stay in Created.",
+            "visibility": "Public: instant enroll. Private: join only after you approve.",
             "content_kind": "Helps learners find this course in Explore filters.",
         }
         widgets = {
             "title": forms.TextInput(attrs={"class": INPUT, "placeholder": "Course title"}),
             "description": forms.Textarea(
-                attrs={"class": TEXTAREA, "placeholder": "Short description", "rows": 4}
+                attrs={
+                    "class": TEXTAREA + " mv-course-form-desc",
+                    "placeholder": "Short description",
+                    "rows": 3,
+                }
             ),
             "image": forms.ClearableFileInput(
                 attrs={
                     "class": FILE,
                     "accept": "image/*",
                     "data-image-crop": "1",
-                    "data-crop-aspect": "1.3333",
+                    "data-crop-aspect": "1",
                     "data-crop-max": "1600",
                     "data-crop-quality": "0.85",
                 }

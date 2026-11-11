@@ -14,29 +14,27 @@
   </div>
 
   <div class="mv-course-row-body">
-    <div>
-      <h3 class="line-clamp-2 text-[0.95rem] font-semibold leading-5 text-white sm:text-base sm:leading-6" dir="ltr" lang="en">
-        {{ course.title }}
-      </h3>
-      <p class="mt-1 truncate text-xs text-slate-400"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-        {{ ui.by }}
-        {% if course.owner_id %}
-          <a
-            href="{% url 'public_profile' course.owner_id %}"
-            class="mv-course-row-nested font-medium text-emerald-300 hover:text-emerald-200"
-            dir="ltr"
-          >{{ course.author_name }}</a>
-        {% else %}
-          <span dir="ltr">{{ course.author_name }}</span>
-        {% endif %}
-      </p>
-      {% if course.rating_count %}
-        <p class="mv-stars mt-1">★ {{ course.rating_avg|floatformat:1 }} · {{ course.rating_count }}</p>
+    <h3 class="mv-course-row-title" dir="ltr" lang="en">{{ course.title }}</h3>
+    <p class="mv-course-row-author"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+      {{ ui.by }}
+      {% if course.owner_id %}
+        <a
+          href="{% url 'public_profile' course.owner_id %}"
+          class="mv-course-row-nested font-medium text-emerald-300 hover:text-emerald-200"
+          dir="ltr"
+        >{{ course.author_name }}</a>
+      {% else %}
+        <span dir="ltr">{{ course.author_name }}</span>
       {% endif %}
-      {% if course.description %}
-        <p class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" dir="auto">{{ course.description }}</p>
-      {% endif %}
-      <p class="mv-meta mt-2"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    </p>
+    {% if course.rating_count %}
+      <p class="mv-stars mv-course-row-stars">★ {{ course.rating_avg|floatformat:1 }} · {{ course.rating_count }}</p>
+    {% else %}
+      <p class="mv-stars mv-course-row-stars is-empty">★ —</p>
+    {% endif %}
+    <p class="mv-course-row-desc" dir="auto">{% if course.description %}{{ course.description }}{% else %}&nbsp;{% endif %}</p>
+    <div class="mv-course-row-footer">
+      <p class="mv-meta min-w-0"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
         {{ course.section_count }} {{ ui.sec_short }}
         {% if course.lesson_count %} · {{ course.lesson_count }} {{ ui.lessons }}{% endif %}
         {% if course.content_kind and course.content_kind != 'general' %}
@@ -50,6 +48,18 @@
             {% endif %}
         {% endif %}
       </p>
+      <div class="mv-course-row-badges"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        {% if course.visibility == 'private' %}
+          <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-amber-200">{{ ui.badge_private }}</span>
+          {% if course.pk in enrolled_ids %}
+            <span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-200">{{ ui.badge_private_for_you }}</span>
+          {% elif course.pk in pending_ids %}
+            <span class="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-sky-200">{{ ui.badge_enroll_pending }}</span>
+          {% endif %}
+        {% else %}
+          <span class="rounded-full border border-slate-600 bg-slate-800/80 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-300">{{ ui.public }}</span>
+        {% endif %}
+      </div>
     </div>
   </div>
 </article>

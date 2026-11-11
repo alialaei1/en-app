@@ -10,16 +10,81 @@
     data-endpoint="{% url 'enrolled_courses' %}"
     data-page="{{ feed_page|default:1 }}"
     data-has-more="{% if feed_has_more %}1{% else %}0{% endif %}"
-    data-history="0"
+    data-default-filter="all"
+    data-active-filter="{{ active_filter|default:'all' }}"
+    data-query="{{ query|default:'' }}"
+    data-filter-label="{{ filter_label }}"
+    data-history="1"
     {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}
   >
-    <div class="mv-page-head">
-      <div>
-        <p class="mv-eyebrow">{{ ui.learning }}</p>
-        <h1 class="mv-title">{{ ui.enrolled_courses }}</h1>
-        <p class="mv-lead">{{ ui.enrolled_lead }}</p>
+    <form method="get" action="{% url 'enrolled_courses' %}" class="mv-search mb-4" data-course-feed-search>
+      <input type="hidden" name="f" value="{{ active_filter }}" {% if not active_filter or active_filter == 'all' %}disabled{% endif %} />
+      <label class="sr-only" for="enrolled-search">{{ ui.search }}</label>
+      <div class="mv-search-field">
+        <input
+          id="enrolled-search"
+          type="search"
+          name="q"
+          value="{{ query }}"
+          placeholder="{{ ui.search_placeholder }}"
+          {% if ui_rtl %}dir="rtl"{% endif %}
+        />
+        <button type="submit" class="mv-search-submit" aria-label="{{ ui.search }}">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" stroke-width="2" />
+            <path d="m16.2 16.2 3.3 3.3" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
-      <a href="{% url 'explore' %}" class="mv-btn mv-btn-ghost hidden sm:inline-flex">{{ ui.browse_explore }}</a>
+      <a
+        href="{% url 'enrolled_courses' %}{% if active_filter and active_filter != 'all' %}?f={{ active_filter }}{% endif %}"
+        class="mv-btn mv-btn-ghost shrink-0"
+        data-course-feed-clear
+        {% if not query %}hidden{% endif %}
+      >{{ ui.clear }}</a>
+    </form>
+
+    <div class="mb-5">
+      <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ ui.explore_all_filters }}</p>
+      <div class="mv-chip-scroller" data-chip-scroller>
+        <button
+          type="button"
+          class="mv-chip-arrow is-start"
+          data-chip-prev
+          aria-label="{{ ui.filter_scroll_prev }}"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 6 9 12l6 6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="mv-chip-row" data-chip-track tabindex="0" role="list">
+          {% for item in enrolled_filters %}
+            <a
+              href="{% url 'enrolled_courses' %}?f={{ item.key }}{% if query %}&q={{ query|urlencode }}{% endif %}"
+              class="mv-chip{% if item.key == active_filter %} is-active{% endif %}"
+              role="listitem"
+              data-course-feed-filter="{{ item.key }}"
+            >{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        <button
+          type="button"
+          class="mv-chip-arrow is-end"
+          data-chip-next
+          aria-label="{{ ui.filter_scroll_next }}"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="mb-3 flex items-baseline justify-between gap-3">
+      <h2 class="mv-section-title" data-course-feed-title>
+        {% if query %}{{ ui.search_results }} · {{ filter_label }}{% else %}{{ filter_label }}{% endif %}
+      </h2>
+      <p class="mv-meta" data-course-feed-meta {% if not query %}hidden{% endif %}>
+        {% if query %}{{ result_count }} {{ ui.results_for }} “{{ query }}”{% endif %}
+      </p>
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3" data-course-feed-list {% if not courses %}hidden{% endif %}>
@@ -27,9 +92,16 @@
     </div>
 
     <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
-      <h2>{{ ui.no_enrolled_yet }}</h2>
-      <p>{{ ui.go_explore_enroll }}</p>
-      <a href="{% url 'explore' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.go_to_explore }}</a>
+      <div data-empty-with-query {% if not query %}hidden{% endif %}>
+        <h2>{{ ui.no_match }} “<span data-empty-query>{{ query }}</span>”.</h2>
+      </div>
+      <div data-empty-no-query {% if query %}hidden{% endif %}>
+        <h2>{% if active_filter and active_filter != 'all' %}{{ ui.no_filter_results }}{% else %}{{ ui.no_enrolled_yet }}{% endif %}</h2>
+        {% if not active_filter or active_filter == 'all' %}
+          <p>{{ ui.go_explore_enroll }}</p>
+          <a href="{% url 'explore' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.go_to_explore }}</a>
+        {% endif %}
+      </div>
     </div>
 
     <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>
@@ -38,5 +110,6 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="{% static 'js/chip_scroll.js' %}"></script>
   <script src="{% static 'js/course_feed.js' %}"></script>
 {% endblock %}

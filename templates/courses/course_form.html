@@ -4,35 +4,71 @@
 {% block title %}{{ page_title }} · Mimivo{% endblock %}
 
 {% block content %}
-  <div{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-    <div class="mb-6">
-      <a href="{% if course %}{% url 'course_detail' course.pk %}{% else %}{% url 'course_list' %}{% endif %}" class="text-sm text-slate-400 hover:text-emerald-300">
-        ← {{ ui.cancel }}
-      </a>
-    </div>
+  <div class="mv-course-form-page"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    <div class="mv-card mv-course-form-card">
+      <header class="mv-course-form-head">
+        <h1 class="mv-title">{{ page_title }}</h1>
+      </header>
 
-    <div class="mx-auto max-w-2xl mv-card p-5 sm:p-6">
-      <h1 class="mv-title mb-6" style="font-size:1.45rem">{{ page_title }}</h1>
-      <form method="post" enctype="multipart/form-data" class="space-y-5">
+      <form method="post" enctype="multipart/form-data" class="mv-course-form">
         {% csrf_token %}
-        {% for field in form %}
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {% if field.name == "image" and course and course.image %}
+
+        <div class="mv-course-form-top">
+          <div class="mv-course-form-cover">
+            <label class="mv-course-form-label" for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
+            {% if course and course.image %}
               <span hidden data-current-image="{{ course.image.url }}"></span>
             {% endif %}
-            <div{% if field.name == 'title' or field.name == 'description' %} dir="ltr"{% elif field.name == 'image' %} dir="ltr"{% endif %}>{{ field }}</div>
-            {% if field.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
-            {% endif %}
-            {% if field.errors %}
-              <p class="mt-2 text-sm text-rose-300">{{ field.errors|striptags }}</p>
+            <div dir="ltr">{{ form.image }}</div>
+            {% if form.image.errors %}
+              <p class="mv-course-form-error">{{ form.image.errors|striptags }}</p>
             {% endif %}
           </div>
-        {% endfor %}
-        <button type="submit" class="mv-btn mv-btn-primary">
-          {{ submit_label }}
-        </button>
+
+          <div class="mv-course-form-title-wrap mv-course-form-field">
+            <label class="mv-course-form-label" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            <div dir="ltr">{{ form.title }}</div>
+            {% if form.title.errors %}
+              <p class="mv-course-form-error">{{ form.title.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div class="mv-course-form-desc-wrap mv-course-form-field">
+            <label class="mv-course-form-label" for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            <div dir="ltr">{{ form.description }}</div>
+            {% if form.description.errors %}
+              <p class="mv-course-form-error">{{ form.description.errors|striptags }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mv-course-form-meta">
+          <div class="mv-course-form-field">
+            <label class="mv-course-form-label" for="{{ form.visibility.id_for_label }}">{{ form.visibility.label }}</label>
+            {{ form.visibility }}
+            {% if form.visibility.help_text %}
+              <p class="mv-course-form-help">{{ form.visibility.help_text }}</p>
+            {% endif %}
+            {% if form.visibility.errors %}
+              <p class="mv-course-form-error">{{ form.visibility.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div class="mv-course-form-field">
+            <label class="mv-course-form-label" for="{{ form.content_kind.id_for_label }}">{{ form.content_kind.label }}</label>
+            {{ form.content_kind }}
+            {% if form.content_kind.help_text %}
+              <p class="mv-course-form-help">{{ form.content_kind.help_text }}</p>
+            {% endif %}
+            {% if form.content_kind.errors %}
+              <p class="mv-course-form-error">{{ form.content_kind.errors|striptags }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mv-course-form-actions">
+          <button type="submit" class="mv-btn mv-btn-primary">{{ submit_label }}</button>
+        </div>
       </form>
     </div>
   </div>

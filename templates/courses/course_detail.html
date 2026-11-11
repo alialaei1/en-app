@@ -10,81 +10,186 @@
     data-section-reorder-url="{{ section_reorder_url }}"
     data-lesson-reorder-url-template="{{ lesson_reorder_url_template }}"
   >
-    <section class="mv-hero-course mb-8 mv-fade-in">
-      <div class="mv-hero-course-media">
-        {% if course.image %}
-          <img src="{{ course.image.url }}" alt="" decoding="async" />
-        {% else %}
-          <span class="mv-media-fallback"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ ui.no_cover }}</span>
-        {% endif %}
-      </div>
-      <div class="flex flex-col justify-between gap-5 p-5 sm:p-6">
-        <div>
-          <p class="mv-eyebrow"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+    {% if can_manage or not is_enrolled %}
+      <section class="mv-hero-course mb-8 mv-fade-in">
+        <div class="mv-hero-course-media">
+          {% if course.image %}
+            <img src="{{ course.image.url }}" alt="" decoding="async" />
+          {% else %}
+            <span class="mv-media-fallback"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>{{ ui.no_cover }}</span>
+          {% endif %}
+        </div>
+        <div class="flex flex-col justify-between gap-5 p-5 sm:p-6">
+          <div>
+            <p class="mv-eyebrow"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+              {% if course.is_public %}{{ ui.public_course }}{% else %}{{ ui.private_course }}{% endif %}
+            </p>
+            <h1 class="mv-title" dir="ltr" lang="en">{{ course.title }}</h1>
+            <p class="mt-2 text-sm text-slate-400"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+              {{ ui.by }}
+              {% if course.owner_id %}
+                <a href="{% url 'public_profile' course.owner_id %}" class="font-medium text-emerald-300 hover:text-emerald-200" dir="ltr">{{ course.author_name }}</a>
+              {% else %}
+                <span class="font-medium text-slate-300" dir="ltr">{{ course.author_name }}</span>
+              {% endif %}
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-sm"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+              <button
+                type="button"
+                data-reviews-open
+                class="mv-stars inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 transition hover:border-amber-400/40 hover:bg-amber-500/15"
+                aria-haspopup="dialog"
+                aria-controls="reviews-modal"
+              >
+                ★ {{ rating_avg_display }}
+                <span class="font-medium text-slate-300">
+                  · {% if rating_count %}{{ rating_count }} {{ ui.reviews_count }}{% else %}{{ ui.view_reviews }}{% endif %}
+                </span>
+              </button>
+            </div>
+            {% if course.description %}
+              <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300" dir="auto">{{ course.description }}</p>
+            {% endif %}
+          </div>
+          <div class="mv-actions"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+            {% if can_manage %}
+              <a href="{% url 'course_edit' course.pk %}" class="mv-btn mv-btn-ghost">{{ ui.edit_course }}</a>
+              <a href="{% url 'section_create' course.pk %}" class="mv-btn mv-btn-primary">{{ ui.add_section }}</a>
+              <form method="post" action="{% url 'course_delete' course.pk %}" data-confirm="{{ ui.confirm_delete_course }}">
+                {% csrf_token %}
+                <button type="submit" class="mv-btn mv-btn-danger">{{ ui.delete }}</button>
+              </form>
+            {% elif user.is_authenticated %}
+              {% if enrollment_status == 'pending' %}
+                <span class="mv-btn mv-btn-ghost" style="cursor:default;opacity:0.9">{{ ui.enroll_request_pending }}</span>
+              {% elif course.is_public %}
+                <form method="post" action="{% url 'course_enroll' course.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}" />
+                  <button type="submit" class="mv-btn mv-btn-primary">{{ ui.enroll_in_course }}</button>
+                </form>
+              {% else %}
+                <form method="post" action="{% url 'course_enroll' course.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}" />
+                  <button type="submit" class="mv-btn mv-btn-primary">{{ ui.request_enroll }}</button>
+                </form>
+              {% endif %}
+            {% else %}
+              <p class="text-sm text-slate-400">
+                <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="text-emerald-400 hover:text-emerald-300">{{ ui.log_in }}</a>
+                {{ ui.login_to_enroll_study }}
+              </p>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+    {% else %}
+      <div class="mb-5 flex items-start justify-between gap-3 mv-fade-in"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <div class="min-w-0">
+          <p class="mv-eyebrow">
             {% if course.is_public %}{{ ui.public_course }}{% else %}{{ ui.private_course }}{% endif %}
           </p>
-          <h1 class="mv-title" dir="ltr" lang="en">{{ course.title }}</h1>
-          <p class="mt-2 text-sm text-slate-400"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-            {{ ui.by }}
-            {% if course.owner_id %}
-              <a href="{% url 'public_profile' course.owner_id %}" class="font-medium text-emerald-300 hover:text-emerald-200" dir="ltr">{{ course.author_name }}</a>
-            {% else %}
-              <span class="font-medium text-slate-300" dir="ltr">{{ course.author_name }}</span>
-            {% endif %}
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-2 text-sm"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-            <button
-              type="button"
-              id="reviews-open-btn"
-              class="mv-stars inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 transition hover:border-amber-400/40 hover:bg-amber-500/15"
-              aria-haspopup="dialog"
-              aria-controls="reviews-modal"
-            >
-              ★ {{ rating_avg_display }}
-              <span class="font-medium text-slate-300">
-                · {% if rating_count %}{{ rating_count }} {{ ui.reviews_count }}{% else %}{{ ui.view_reviews }}{% endif %}
-              </span>
-            </button>
-          </div>
-          {% if course.description %}
-            <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300" dir="auto">{{ course.description }}</p>
-          {% endif %}
+          <h1 class="text-xl font-semibold text-white sm:text-2xl" dir="ltr" lang="en">{{ course.title }}</h1>
         </div>
-        <div class="mv-actions"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-          {% if can_manage %}
-            <a href="{% url 'course_edit' course.pk %}" class="mv-btn mv-btn-ghost">{{ ui.edit_course }}</a>
-            <a href="{% url 'section_create' course.pk %}" class="mv-btn mv-btn-primary">{{ ui.add_section }}</a>
-            <form method="post" action="{% url 'course_delete' course.pk %}" data-confirm="{{ ui.confirm_delete_course }}">
-              {% csrf_token %}
-              <button type="submit" class="mv-btn mv-btn-danger">{{ ui.delete }}</button>
-            </form>
-          {% elif user.is_authenticated and course.is_public %}
-            {% if is_enrolled %}
-              <a href="{% url 'enrolled_courses' %}" class="mv-btn mv-btn-ghost">{{ ui.in_enrolled }}</a>
-              <form method="post" action="{% url 'course_unenroll' course.pk %}" data-confirm="{{ ui.confirm_unenroll_course }}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.path }}" />
-                <button type="submit" class="mv-btn mv-btn-danger">{{ ui.unenroll }}</button>
-              </form>
-            {% else %}
-              <form method="post" action="{% url 'course_enroll' course.pk %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.path }}" />
-                <button type="submit" class="mv-btn mv-btn-primary">{{ ui.enroll_in_course }}</button>
-              </form>
-            {% endif %}
-          {% elif not user.is_authenticated %}
-            <p class="text-sm text-slate-400">
-              <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="text-emerald-400 hover:text-emerald-300">{{ ui.log_in }}</a>
-              {{ ui.login_to_enroll_study }}
-            </p>
-          {% endif %}
-        </div>
+        <button
+          type="button"
+          data-course-info-open
+          class="mv-course-more-btn"
+          aria-haspopup="dialog"
+          aria-controls="course-info-modal"
+          aria-label="{{ ui.course_more }}"
+        >⋯</button>
       </div>
-    </section>
+    {% endif %}
 
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-4"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-      <div>
+    {% if can_manage and not course.is_public %}
+      <section class="mv-card mb-6 p-4 sm:p-6"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <h2 class="text-lg font-semibold text-white">{{ ui.enrollment_management }}</h2>
+        <p class="mt-1 text-xs text-slate-500">{{ ui.enrollment_management_help }}</p>
+
+        <div class="mt-5 space-y-5">
+          <div>
+            <h3 class="text-sm font-semibold text-amber-200">{{ ui.pending_requests }} ({{ pending_enrollments|length }})</h3>
+            {% if pending_enrollments %}
+              <ul class="mt-2 space-y-2">
+                {% for item in pending_enrollments %}
+                  <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium text-slate-100" dir="ltr">
+                        {% if item.user.profile.display_name %}{{ item.user.profile.display_name }}{% else %}{{ item.user.email }}{% endif %}
+                      </p>
+                      <p class="text-xs text-slate-500" dir="ltr">ID {{ item.user_id }} · {{ item.user.email }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <form method="post" action="{% url 'enrollment_approve' course.pk item.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="mv-btn mv-btn-primary" style="min-height:2.1rem;padding:0.35rem 0.7rem;font-size:0.75rem">{{ ui.approve_enroll }}</button>
+                      </form>
+                      <form method="post" action="{% url 'enrollment_reject' course.pk item.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="mv-btn mv-btn-danger" style="min-height:2.1rem;padding:0.35rem 0.7rem;font-size:0.75rem">{{ ui.reject_enroll }}</button>
+                      </form>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="mt-2 text-sm text-slate-500">{{ ui.no_pending_requests }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold text-emerald-200">{{ ui.approved_members }} ({{ approved_enrollments|length }})</h3>
+            {% if approved_enrollments %}
+              <ul class="mt-2 space-y-2">
+                {% for item in approved_enrollments %}
+                  <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium text-slate-100" dir="ltr">
+                        {% if item.user.profile.display_name %}{{ item.user.profile.display_name }}{% else %}{{ item.user.email }}{% endif %}
+                      </p>
+                      <p class="text-xs text-slate-500" dir="ltr">ID {{ item.user_id }} · {{ item.user.email }}</p>
+                    </div>
+                    <form method="post" action="{% url 'enrollment_revoke' course.pk item.pk %}" data-confirm="{{ ui.confirm_revoke_enroll }}">
+                      {% csrf_token %}
+                      <button type="submit" class="mv-btn mv-btn-danger" style="min-height:2.1rem;padding:0.35rem 0.7rem;font-size:0.75rem">{{ ui.revoke_enroll }}</button>
+                    </form>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="mt-2 text-sm text-slate-500">{{ ui.no_approved_members }}</p>
+            {% endif %}
+          </div>
+
+          {% if rejected_enrollments %}
+            <div>
+              <h3 class="text-sm font-semibold text-slate-300">{{ ui.rejected_requests }} ({{ rejected_enrollments|length }})</h3>
+              <ul class="mt-2 space-y-2">
+                {% for item in rejected_enrollments %}
+                  <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium text-slate-200" dir="ltr">
+                        {% if item.user.profile.display_name %}{{ item.user.profile.display_name }}{% else %}{{ item.user.email }}{% endif %}
+                      </p>
+                      <p class="text-xs text-slate-500" dir="ltr">ID {{ item.user_id }}</p>
+                    </div>
+                    <form method="post" action="{% url 'enrollment_approve' course.pk item.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="mv-btn mv-btn-ghost" style="min-height:2.1rem;padding:0.35rem 0.7rem;font-size:0.75rem">{{ ui.approve_enroll }}</button>
+                    </form>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="mb-4 flex flex-wrap items-end justify-between gap-3"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+      <div class="min-w-0">
         <h2 class="text-xl font-semibold text-white">{{ ui.sections }}</h2>
         {% if can_manage %}
           <p class="mt-1 text-xs text-slate-500">{{ ui.drag_reorder }}</p>
@@ -174,12 +279,14 @@
                       {% if lesson.chunk_count %}
                         {% if can_manage or can_study %}
                           <a href="{% url 'lesson_study' lesson.pk %}" class="mv-btn mv-btn-primary" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">{{ ui.study }}</a>
-                        {% elif user.is_authenticated and course.is_public %}
+                        {% elif user.is_authenticated and enrollment_status == 'pending' %}
+                          <span class="mv-btn mv-btn-ghost" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem;cursor:default;opacity:0.9">{{ ui.enroll_request_pending }}</span>
+                        {% elif user.is_authenticated %}
                           <form method="post" action="{% url 'course_enroll' course.pk %}" class="contents">
                             {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'lesson_study' lesson.pk %}" />
+                            <input type="hidden" name="next" value="{{ request.path }}" />
                             <button type="submit" class="mv-btn mv-btn-primary" style="min-height:2.35rem;padding:0.45rem 0.85rem;font-size:0.82rem">
-                              {{ ui.enroll_to_study }}
+                              {% if course.is_public %}{{ ui.enroll_to_study }}{% else %}{{ ui.request_enroll }}{% endif %}
                             </button>
                           </form>
                         {% else %}
@@ -226,6 +333,75 @@
       </div>
     {% endif %}
 
+    {% if is_enrolled and not can_manage %}
+      <div
+        id="course-info-modal"
+        class="mv-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="course-info-modal-title"
+        hidden
+      >
+        <button type="button" class="mv-modal-backdrop" data-course-info-close aria-label="{{ ui.close }}"></button>
+        <div class="mv-modal-panel" {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}>
+          <div class="mv-modal-head">
+            <div class="min-w-0">
+              <h2 id="course-info-modal-title" class="text-lg font-semibold text-white">{{ ui.course_details }}</h2>
+            </div>
+            <button type="button" class="mv-btn mv-btn-ghost shrink-0" style="min-height:2.35rem" data-course-info-close>
+              {{ ui.close }}
+            </button>
+          </div>
+          <div class="mv-modal-body">
+            <div class="mv-course-info-media mv-media">
+              {% if course.image %}
+                <img src="{{ course.image.url }}" alt="" decoding="async" />
+              {% else %}
+                <span class="mv-media-fallback">{{ ui.no_cover }}</span>
+              {% endif %}
+            </div>
+            <p class="mv-eyebrow mt-4">
+              {% if course.is_public %}{{ ui.public_course }}{% else %}{{ ui.private_course }}{% endif %}
+            </p>
+            <h3 class="mt-1 text-xl font-semibold text-white" dir="ltr" lang="en">{{ course.title }}</h3>
+            <p class="mt-2 text-sm text-slate-400">
+              {{ ui.by }}
+              {% if course.owner_id %}
+                <a href="{% url 'public_profile' course.owner_id %}" class="font-medium text-emerald-300 hover:text-emerald-200" dir="ltr">{{ course.author_name }}</a>
+              {% else %}
+                <span class="font-medium text-slate-300" dir="ltr">{{ course.author_name }}</span>
+              {% endif %}
+            </p>
+            <div class="mt-3">
+              <button
+                type="button"
+                data-reviews-open
+                class="mv-stars inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 transition hover:border-amber-400/40 hover:bg-amber-500/15"
+                aria-haspopup="dialog"
+                aria-controls="reviews-modal"
+              >
+                ★ {{ rating_avg_display }}
+                <span class="font-medium text-slate-300">
+                  · {% if rating_count %}{{ rating_count }} {{ ui.reviews_count }}{% else %}{{ ui.view_reviews }}{% endif %}
+                </span>
+              </button>
+            </div>
+            {% if course.description %}
+              <p class="mt-4 text-sm leading-7 text-slate-300" dir="auto">{{ course.description }}</p>
+            {% endif %}
+            <div class="mv-actions mt-5">
+              <a href="{% url 'enrolled_courses' %}" class="mv-btn mv-btn-ghost">{{ ui.in_enrolled }}</a>
+              <form method="post" action="{% url 'course_unenroll' course.pk %}" data-confirm="{{ ui.confirm_unenroll_course }}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}" />
+                <button type="submit" class="mv-btn mv-btn-danger">{{ ui.unenroll }}</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
     <div
       id="reviews-modal"
       class="mv-modal hidden"
@@ -250,7 +426,7 @@
         </div>
 
         <div class="mv-modal-body">
-          {% if user.is_authenticated %}
+          {% if can_review %}
             <form method="post" action="{% url 'course_review' course.pk %}" class="mb-5 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
               {% csrf_token %}
               <p class="mb-3 text-sm font-medium text-slate-200">
@@ -266,7 +442,7 @@
                         name="rating"
                         value="{{ value }}"
                         class="peer sr-only"
-                        {% if user_review and user_review.rating == value %}checked{% elif not user_review and review_form.rating.value == value %}checked{% endif %}
+                        {% if user_review and user_review.rating == value %}checked{% elif not user_review and review_form.initial.rating == value %}checked{% endif %}
                         required
                       />
                       <span class="inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-300 peer-checked:border-amber-400/60 peer-checked:bg-amber-500/15 peer-checked:text-amber-200">
@@ -298,6 +474,8 @@
                 {% endif %}
               </div>
             </form>
+          {% elif user.is_authenticated %}
+            <p class="mb-5 text-sm text-slate-400">{{ ui.review_not_allowed }}</p>
           {% else %}
             <p class="mb-5 text-sm text-slate-400">
               <a href="{% url 'login' %}?next={% url 'course_detail' course.pk %}%3Freviews%3D1" class="text-emerald-400 hover:text-emerald-300">{{ ui.log_in }}</a>
@@ -402,46 +580,104 @@
     body.mv-modal-open {
       overflow: hidden;
     }
+    .mv-course-more-btn {
+      display: inline-flex;
+      width: 2.35rem;
+      height: 2.35rem;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 0.85rem;
+      background: rgba(15, 23, 42, 0.65);
+      color: #e2e8f0;
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .mv-course-more-btn:hover {
+      border-color: rgba(52, 211, 153, 0.35);
+      color: #6ee7b7;
+    }
+    .mv-course-info-media {
+      aspect-ratio: 16 / 10;
+      width: 100%;
+      border-radius: 1rem;
+      overflow: hidden;
+    }
   </style>
   <script>
     (function () {
-      var modal = document.getElementById("reviews-modal");
-      var openBtn = document.getElementById("reviews-open-btn");
-      if (!modal || !openBtn) return;
+      function bindModal(modal, openSelector, closeSelector, opts) {
+        if (!modal) return { open: function () {}, close: function () {}, isOpen: function () { return false; } };
+        opts = opts || {};
+        var openButtons = document.querySelectorAll(openSelector);
 
-      function openModal() {
-        modal.classList.remove("hidden");
-        modal.removeAttribute("hidden");
-        document.body.classList.add("mv-modal-open");
-        var closeBtn = modal.querySelector("[data-reviews-close].mv-btn");
-        if (closeBtn) closeBtn.focus();
-      }
+        function isOpen() {
+          return !modal.hasAttribute("hidden");
+        }
 
-      function closeModal() {
-        modal.classList.add("hidden");
-        modal.setAttribute("hidden", "");
-        document.body.classList.remove("mv-modal-open");
-        openBtn.focus();
-        try {
-          var url = new URL(window.location.href);
-          if (url.searchParams.has("reviews")) {
-            url.searchParams.delete("reviews");
-            window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+        function openModal() {
+          modal.classList.remove("hidden");
+          modal.removeAttribute("hidden");
+          document.body.classList.add("mv-modal-open");
+          var closeBtn = modal.querySelector(closeSelector + ".mv-btn");
+          if (closeBtn) closeBtn.focus();
+          if (typeof opts.onOpen === "function") opts.onOpen();
+        }
+
+        function closeModal() {
+          if (!isOpen()) return;
+          modal.classList.add("hidden");
+          modal.setAttribute("hidden", "");
+          if (!document.querySelector(".mv-modal:not([hidden])")) {
+            document.body.classList.remove("mv-modal-open");
           }
-        } catch (e) {}
+          if (typeof opts.onClose === "function") opts.onClose();
+        }
+
+        openButtons.forEach(function (btn) {
+          btn.addEventListener("click", function (event) {
+            event.preventDefault();
+            openModal();
+          });
+        });
+        modal.querySelectorAll(closeSelector).forEach(function (el) {
+          el.addEventListener("click", closeModal);
+        });
+        return { open: openModal, close: closeModal, isOpen: isOpen };
       }
 
-      openBtn.addEventListener("click", openModal);
-      modal.querySelectorAll("[data-reviews-close]").forEach(function (el) {
-        el.addEventListener("click", closeModal);
+      var infoModal = document.getElementById("course-info-modal");
+      var reviewsModal = document.getElementById("reviews-modal");
+
+      var infoApi = bindModal(infoModal, "[data-course-info-open]", "[data-course-info-close]");
+      var reviewsApi = bindModal(reviewsModal, "[data-reviews-open]", "[data-reviews-close]", {
+        onOpen: function () {
+          if (infoApi.isOpen()) infoApi.close();
+        },
+        onClose: function () {
+          try {
+            var url = new URL(window.location.href);
+            if (url.searchParams.has("reviews")) {
+              url.searchParams.delete("reviews");
+              window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+            }
+          } catch (e) {}
+        },
       });
+
       document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape" && !modal.hasAttribute("hidden")) closeModal();
+        if (event.key !== "Escape") return;
+        if (reviewsApi.isOpen()) {
+          reviewsApi.close();
+          return;
+        }
+        if (infoApi.isOpen()) infoApi.close();
       });
 
       try {
         var params = new URLSearchParams(window.location.search);
-        if (params.get("reviews") === "1") openModal();
+        if (params.get("reviews") === "1") reviewsApi.open();
       } catch (e) {}
     })();
   </script>

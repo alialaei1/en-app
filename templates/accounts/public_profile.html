@@ -39,7 +39,11 @@
           <div class="mv-profile-stats">
             <div class="mv-profile-stat">
               <span class="mv-profile-stat-value">{{ course_count }}</span>
-              <span class="mv-profile-stat-label">{{ ui.public_courses }}</span>
+              <span class="mv-profile-stat-label">{{ ui.creator_courses }}</span>
+            </div>
+            <div class="mv-profile-stat">
+              <span class="mv-profile-stat-value">{{ follower_count }}</span>
+              <span class="mv-profile-stat-label">{{ ui.course_followers }}</span>
             </div>
             <div class="mv-profile-stat">
               <span class="mv-profile-stat-value mv-stars">★ {{ creator_rating_display }}</span>
@@ -55,7 +59,7 @@
     </section>
 
     <div class="mv-profile-courses-head">
-      <h2>{{ ui.public_courses }}</h2>
+      <h2>{{ ui.creator_courses }}</h2>
     </div>
 
     <div class="grid grid-cols-3 gap-1 sm:gap-2" data-course-feed-list {% if not courses %}hidden{% endif %}>
@@ -63,7 +67,7 @@
     </div>
 
     <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
-      <h2>{{ ui.no_public_courses }}</h2>
+      <h2>{{ ui.no_courses_yet }}</h2>
     </div>
 
     <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>

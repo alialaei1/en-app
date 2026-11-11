@@ -35,10 +35,10 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(CourseEnrollment)
 class CourseEnrollmentAdmin(admin.ModelAdmin):
-    list_display = ("user", "course", "created_at")
-    list_filter = ("created_at",)
+    list_display = ("user", "course", "status", "created_at", "responded_at")
+    list_filter = ("status", "created_at")
     search_fields = ("user__email", "course__title")
-    raw_id_fields = ("user", "course")
+    raw_id_fields = ("user", "course", "responded_by")
 
 
 @admin.register(Section)

@@ -15,31 +15,43 @@ def can_manage_course(user, course: Course) -> bool:
     return bool(course.owner_id and course.owner_id == user.id)
 
 
-def is_enrolled(user, course: Course) -> bool:
+def enrollment_for(user, course: Course) -> CourseEnrollment | None:
     if not user.is_authenticated:
-        return False
-    return CourseEnrollment.objects.filter(user=user, course=course).exists()
+        return None
+    return (
+        CourseEnrollment.objects.filter(user=user, course=course)
+        .select_related("user", "course")
+        .first()
+    )
+
+
+def is_enrolled(user, course: Course) -> bool:
+    """True when the user has an approved enrollment."""
+    enrollment = enrollment_for(user, course)
+    return bool(enrollment and enrollment.is_approved)
+
+
+def enrollment_status(user, course: Course) -> str | None:
+    enrollment = enrollment_for(user, course)
+    return enrollment.status if enrollment else None
 
 
 def can_view_course(user, course: Course) -> bool:
-    if course.is_public:
-        return True
-    return can_manage_course(user, course)
+    """Explore lists all courses; detail pages are viewable by anyone."""
+    return True
 
 
 def can_study_course(user, course: Course) -> bool:
-    """Study: login + (owner/staff OR enrolled in a viewable course)."""
+    """Study/open lessons: owner/staff or approved enrollment."""
     if not user.is_authenticated:
         return False
     if can_manage_course(user, course):
         return True
-    if not can_view_course(user, course):
-        return False
     return is_enrolled(user, course)
 
 
 def can_open_lesson(user, course: Course) -> bool:
-    """Open lesson page (read-only for learners): owner/staff or enrolled."""
+    """Open lesson page (read-only for learners): owner/staff or approved."""
     return can_study_course(user, course)
 
 
@@ -63,7 +75,7 @@ def require_course_study(user, course: Course) -> None:
 
 
 def require_lesson_open(user, course: Course) -> None:
-    """Enrolled learners (and managers) may open lesson pages; others cannot."""
+    """Approved learners (and managers) may open lesson pages."""
     if not user.is_authenticated:
         raise PermissionDenied("Log in to open this lesson.")
     if not can_view_course(user, course):

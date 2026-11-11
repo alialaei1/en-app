@@ -19,6 +19,26 @@
           <span dir="ltr">{{ course.author_name }}</span>
         {% endif %}
       </p>
+      <div class="mt-2 flex flex-wrap gap-1.5"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        {% if course.visibility == 'private' %}
+          <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-amber-200">{{ ui.badge_private }}</span>
+          <span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-200">{{ ui.badge_private_for_you }}</span>
+        {% else %}
+          <span class="rounded-full border border-slate-600 bg-slate-800/80 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-300">{{ ui.public }}</span>
+        {% endif %}
+        {% if course.content_kind and course.content_kind != 'general' %}
+          <span class="rounded-full border border-slate-600 bg-slate-800/60 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-300">
+            {% if course.content_kind == 'podcast' %}{{ ui.kind_podcast }}
+            {% elif course.content_kind == 'video' %}{{ ui.kind_video }}
+            {% elif course.content_kind == 'writing' %}{{ ui.kind_writing }}
+            {% elif course.content_kind == 'listening' %}{{ ui.kind_listening }}
+            {% elif course.content_kind == 'reading' %}{{ ui.kind_reading }}
+            {% elif course.content_kind == 'grammar' %}{{ ui.kind_grammar }}
+            {% elif course.content_kind == 'vocab' %}{{ ui.kind_vocab }}
+            {% endif %}
+          </span>
+        {% endif %}
+      </div>
       <p class="mv-meta mt-2">
         {{ course.section_count }} {{ ui.sec_short }}
         {% if course.lesson_count %} · {{ course.lesson_count }} {{ ui.lessons }}{% endif %}

@@ -7,6 +7,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -14,6 +15,8 @@ from .access import (
     can_manage_course,
     can_open_lesson,
     can_study_course,
+    enrollment_for,
+    enrollment_status,
     is_enrolled,
     require_course_manage,
     require_course_study,
@@ -82,7 +85,7 @@ def _localize_course_form(form, lang):
             form.fields[name].widget.attrs["placeholder"] = t(lang, ph_key)
 
 
-EXPLORE_RANK_FILTERS = ("suggested", "trend", "new")
+EXPLORE_RANK_FILTERS = ("suggested", "trend", "new", "private")
 EXPLORE_KIND_FILTERS = tuple(value for value, _ in Course.ContentKind.choices if value != "general")
 EXPLORE_FILTERS = EXPLORE_RANK_FILTERS + EXPLORE_KIND_FILTERS
 
@@ -95,18 +98,25 @@ def _explore_filters(lang: str) -> list[dict]:
 
 
 def _apply_explore_filter(qs, filter_key: str):
+    approved = Count(
+        "enrollments",
+        filter=Q(enrollments__status=CourseEnrollment.Status.APPROVED),
+        distinct=True,
+    )
+    if filter_key == "private":
+        return qs.filter(visibility=Course.Visibility.PRIVATE).order_by("-updated_at", "id")
     if filter_key in EXPLORE_KIND_FILTERS:
         return qs.filter(content_kind=filter_key).order_by("-updated_at", "id")
     if filter_key == "trend":
-        return qs.annotate(
-            enroll_count=Count("enrollments", distinct=True)
-        ).order_by("-enroll_count", "-lesson_count", "-updated_at", "id")
+        return qs.annotate(enroll_count=approved).order_by(
+            "-enroll_count", "-lesson_count", "-updated_at", "id"
+        )
     if filter_key == "new":
         return qs.order_by("-created_at", "id")
     # suggested: fresh activity with some content first
-    return qs.annotate(
-        enroll_count=Count("enrollments", distinct=True)
-    ).order_by("-updated_at", "-enroll_count", "-lesson_count", "id")
+    return qs.annotate(enroll_count=approved).order_by(
+        "-updated_at", "-enroll_count", "-lesson_count", "id"
+    )
 
 
 def _localize_section_form(form, lang):
@@ -165,8 +175,27 @@ def _enrolled_course_ids(user) -> set[int]:
     if not user.is_authenticated:
         return set()
     return set(
-        CourseEnrollment.objects.filter(user=user).values_list("course_id", flat=True)
+        CourseEnrollment.objects.filter(
+            user=user, status=CourseEnrollment.Status.APPROVED
+        ).values_list("course_id", flat=True)
     )
+
+
+def _user_enrollment_maps(user, course_ids) -> tuple[set[int], set[int]]:
+    """Return (approved_ids, pending_ids) for the current user."""
+    if not user.is_authenticated or not course_ids:
+        return set(), set()
+    rows = CourseEnrollment.objects.filter(
+        user=user, course_id__in=course_ids
+    ).values_list("course_id", "status")
+    approved: set[int] = set()
+    pending: set[int] = set()
+    for course_id, status in rows:
+        if status == CourseEnrollment.Status.APPROVED:
+            approved.add(course_id)
+        elif status == CourseEnrollment.Status.PENDING:
+            pending.add(course_id)
+    return approved, pending
 
 
 def explore(request):
@@ -176,8 +205,7 @@ def explore(request):
         filter_key = "suggested"
 
     lang = request_app_lang(request)
-    base = _course_queryset().filter(visibility=Course.Visibility.PUBLIC)
-    enrolled_ids = _enrolled_course_ids(request.user)
+    base = _course_queryset()
     filters = _explore_filters(lang)
     filter_label = t(lang, f"filter_{filter_key}")
 
@@ -194,6 +222,9 @@ def explore(request):
     page = page_number(request)
     total = qs.count()
     courses, has_more = paginate_items(qs, page)
+    enrolled_ids, pending_ids = _user_enrollment_maps(
+        request.user, [c.pk for c in courses]
+    )
 
     ctx = {
         "query": query,
@@ -202,6 +233,7 @@ def explore(request):
         "courses": courses,
         "result_count": total,
         "enrolled_ids": enrolled_ids,
+        "pending_ids": pending_ids,
         "filter_label": filter_label,
         "feed_page": page,
         "feed_has_more": has_more,
@@ -210,7 +242,11 @@ def explore(request):
     if wants_feed_json(request):
         html = render_to_string(
             "courses/_feed_explore_items.html",
-            {"courses": courses, "enrolled_ids": enrolled_ids},
+            {
+                "courses": courses,
+                "enrolled_ids": enrolled_ids,
+                "pending_ids": pending_ids,
+            },
             request=request,
         )
         return feed_json(
@@ -254,10 +290,41 @@ def course_list(request):
     return render(request, "courses/course_list.html", ctx)
 
 
+ENROLLED_KIND_FILTERS = tuple(value for value, _ in Course.ContentKind.choices)
+ENROLLED_FILTERS = ("all",) + ENROLLED_KIND_FILTERS
+
+
+def _enrolled_filters(lang: str) -> list[dict]:
+    items = [{"key": "all", "label": t(lang, "filter_all")}]
+    for key in ENROLLED_KIND_FILTERS:
+        items.append({"key": key, "label": t(lang, f"kind_{key}")})
+    return items
+
+
+def _apply_enrolled_filter(qs, filter_key: str):
+    if filter_key in ENROLLED_KIND_FILTERS:
+        return qs.filter(course__content_kind=filter_key).order_by("-created_at", "id")
+    # all: recently enrolled
+    return qs.order_by("-created_at", "id")
+
+
 @login_required
 def enrolled_courses(request):
+    query = (request.GET.get("q") or "").strip()
+    filter_key = (request.GET.get("f") or "all").strip().lower()
+    if filter_key not in ENROLLED_FILTERS:
+        filter_key = "all"
+
+    lang = request_app_lang(request)
+    filters = _enrolled_filters(lang)
+    filter_label = (
+        t(lang, "filter_all") if filter_key == "all" else t(lang, f"kind_{filter_key}")
+    )
+
     enrollments = (
-        CourseEnrollment.objects.filter(user=request.user)
+        CourseEnrollment.objects.filter(
+            user=request.user, status=CourseEnrollment.Status.APPROVED
+        )
         .select_related("course", "course__owner", "course__owner__profile")
         .annotate(
             section_count=Count("course__sections", distinct=True),
@@ -265,8 +332,17 @@ def enrolled_courses(request):
             rating_avg=Avg("course__reviews__rating"),
             rating_count=Count("course__reviews", distinct=True),
         )
-        .order_by("-created_at", "id")
     )
+    if query:
+        enrollments = enrollments.filter(
+            Q(course__title__icontains=query)
+            | Q(course__description__icontains=query)
+            | Q(course__owner__email__icontains=query)
+            | Q(course__owner__username__icontains=query)
+            | Q(course__owner__profile__display_name__icontains=query)
+        )
+    enrollments = _apply_enrolled_filter(enrollments, filter_key)
+
     page = page_number(request)
     total = enrollments.count()
     page_rows, has_more = paginate_items(enrollments, page)
@@ -281,6 +357,10 @@ def enrolled_courses(request):
     ctx = {
         "courses": courses,
         "enrolled_ids": {c.pk for c in courses},
+        "query": query,
+        "active_filter": filter_key,
+        "enrolled_filters": filters,
+        "filter_label": filter_label,
         "feed_page": page,
         "feed_has_more": has_more,
         "result_count": total,
@@ -291,8 +371,25 @@ def enrolled_courses(request):
             {"courses": courses},
             request=request,
         )
-        return feed_json(html=html, page=page, has_more=has_more, total=total)
+        return feed_json(
+            html=html,
+            page=page,
+            has_more=has_more,
+            total=total,
+            meta={
+                "filter_label": filter_label,
+                "query": query,
+                "active_filter": filter_key,
+            },
+        )
     return render(request, "courses/enrolled_courses.html", ctx)
+
+
+def _redirect_next_or(request, fallback_name, **kwargs):
+    next_url = request.POST.get("next") or ""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(fallback_name, **kwargs) if kwargs else redirect(fallback_name)
 
 
 @login_required
@@ -300,23 +397,56 @@ def enrolled_courses(request):
 def course_enroll(request, pk):
     course = get_object_or_404(Course, pk=pk)
     require_course_view(request.user, course)
-    if not course.is_public and not can_manage_course(request.user, course):
-        messages.error(request, t(request_app_lang(request), "only_public_enroll"))
-        return redirect("explore")
+    lang = request_app_lang(request)
 
-    _, created = CourseEnrollment.objects.get_or_create(
-        user=request.user,
-        course=course,
-    )
-    if created:
-        messages.success(request, f'{t(request_app_lang(request), "enrolled_in")} “{course.title}”.')
+    if can_manage_course(request.user, course):
+        messages.info(request, t(lang, "owner_no_enroll_needed"))
+        return _redirect_next_or(request, "course_detail", pk=course.pk)
+
+    enrollment = enrollment_for(request.user, course)
+    if course.is_public:
+        if enrollment and enrollment.is_approved:
+            messages.info(request, t(lang, "already_enrolled"))
+        else:
+            if enrollment:
+                enrollment.status = CourseEnrollment.Status.APPROVED
+                enrollment.responded_at = timezone.now()
+                enrollment.responded_by = None
+                enrollment.save(
+                    update_fields=["status", "responded_at", "responded_by"]
+                )
+            else:
+                CourseEnrollment.objects.create(
+                    user=request.user,
+                    course=course,
+                    status=CourseEnrollment.Status.APPROVED,
+                )
+            messages.success(
+                request, f'{t(lang, "enrolled_in")} “{course.title}”.'
+            )
+        return _redirect_next_or(request, "enrolled_courses")
+
+    # Private course: request enrollment
+    if enrollment and enrollment.is_approved:
+        messages.info(request, t(lang, "already_enrolled"))
+    elif enrollment and enrollment.is_pending:
+        messages.info(request, t(lang, "enroll_request_pending"))
     else:
-        messages.info(request, t(request_app_lang(request), "already_enrolled"))
-
-    next_url = request.POST.get("next") or ""
-    if next_url.startswith("/") and not next_url.startswith("//"):
-        return redirect(next_url)
-    return redirect("enrolled_courses")
+        if enrollment:
+            enrollment.status = CourseEnrollment.Status.PENDING
+            enrollment.responded_at = None
+            enrollment.responded_by = None
+            enrollment.save(
+                update_fields=["status", "responded_at", "responded_by"]
+            )
+        else:
+            CourseEnrollment.objects.create(
+                user=request.user,
+                course=course,
+                status=CourseEnrollment.Status.PENDING,
+            )
+        messages.success(request, t(lang, "enroll_request_sent"))
+    return _redirect_next_or(request, "course_detail", pk=course.pk)
 
 
 @login_required
@@ -327,15 +457,79 @@ def course_unenroll(request, pk):
         user=request.user,
         course=course,
     ).delete()
+    lang = request_app_lang(request)
     if deleted:
-        messages.success(request, f'{t(request_app_lang(request), "removed_from_enrolled")} (“{course.title}”).')
+        messages.success(
+            request,
+            f'{t(lang, "removed_from_enrolled")} (“{course.title}”).',
+        )
     else:
-        messages.info(request, t(request_app_lang(request), "not_in_enrolled"))
+        messages.info(request, t(lang, "not_in_enrolled"))
+    return _redirect_next_or(request, "enrolled_courses")
 
-    next_url = request.POST.get("next") or ""
-    if next_url.startswith("/") and not next_url.startswith("//"):
-        return redirect(next_url)
-    return redirect("enrolled_courses")
+
+@login_required
+@require_POST
+def enrollment_approve(request, pk, enrollment_id):
+    course = get_object_or_404(Course, pk=pk)
+    require_course_manage(request.user, course)
+    lang = request_app_lang(request)
+    if course.is_public:
+        messages.error(request, t(lang, "public_no_enrollment_mgmt"))
+        return redirect("course_detail", pk=course.pk)
+
+    enrollment = get_object_or_404(CourseEnrollment, pk=enrollment_id, course=course)
+    enrollment.status = CourseEnrollment.Status.APPROVED
+    enrollment.responded_at = timezone.now()
+    enrollment.responded_by = request.user
+    enrollment.save(update_fields=["status", "responded_at", "responded_by"])
+    messages.success(request, t(lang, "enroll_approved"))
+    return redirect("course_detail", pk=course.pk)
+
+
+@login_required
+@require_POST
+def enrollment_reject(request, pk, enrollment_id):
+    course = get_object_or_404(Course, pk=pk)
+    require_course_manage(request.user, course)
+    lang = request_app_lang(request)
+    if course.is_public:
+        messages.error(request, t(lang, "public_no_enrollment_mgmt"))
+        return redirect("course_detail", pk=course.pk)
+
+    enrollment = get_object_or_404(CourseEnrollment, pk=enrollment_id, course=course)
+    enrollment.status = CourseEnrollment.Status.REJECTED
+    enrollment.responded_at = timezone.now()
+    enrollment.responded_by = request.user
+    enrollment.save(update_fields=["status", "responded_at", "responded_by"])
+    messages.success(request, t(lang, "enroll_rejected"))
+    return redirect("course_detail", pk=course.pk)
+
+
+@login_required
+@require_POST
+def enrollment_revoke(request, pk, enrollment_id):
+    course = get_object_or_404(Course, pk=pk)
+    require_course_manage(request.user, course)
+    lang = request_app_lang(request)
+    if course.is_public:
+        messages.error(request, t(lang, "public_no_enrollment_mgmt"))
+        return redirect("course_detail", pk=course.pk)
+
+    enrollment = get_object_or_404(CourseEnrollment, pk=enrollment_id, course=course)
+    enrollment.delete()
+    messages.success(request, t(lang, "enroll_revoked"))
+    return redirect("course_detail", pk=course.pk)
+
+
+def _can_review_course(user, course) -> bool:
+    if not user.is_authenticated:
+        return False
+    if can_manage_course(user, course):
+        return True
+    if course.is_public:
+        return True
+    return is_enrolled(user, course)
 
 
 @login_required
@@ -343,8 +537,8 @@ def course_unenroll(request, pk):
 def course_review(request, pk):
     course = get_object_or_404(Course, pk=pk)
     require_course_view(request.user, course)
-    if not course.is_public and not can_manage_course(request.user, course):
-        messages.error(request, t(request_app_lang(request), "review_public_only"))
+    if not _can_review_course(request.user, course):
+        messages.error(request, t(request_app_lang(request), "review_not_allowed"))
         return redirect("course_detail", pk=course.pk)
 
     lang = request_app_lang(request)
@@ -426,6 +620,7 @@ def course_detail(request, pk):
     require_course_view(request.user, course)
     can_manage = can_manage_course(request.user, course)
     enrolled = is_enrolled(request.user, course)
+    my_status = enrollment_status(request.user, course)
     lang = request_app_lang(request)
     user_review = None
     if request.user.is_authenticated:
@@ -448,6 +643,26 @@ def course_detail(request, pk):
     ).replace("999999999", "{id}")
     rating_avg = course.rating_avg or 0
     rating_count = course.rating_count or 0
+
+    pending_enrollments = []
+    approved_enrollments = []
+    rejected_enrollments = []
+    if can_manage and not course.is_public:
+        managed = list(
+            course.enrollments.select_related("user", "user__profile").order_by(
+                "-created_at", "id"
+            )
+        )
+        pending_enrollments = [
+            e for e in managed if e.status == CourseEnrollment.Status.PENDING
+        ]
+        approved_enrollments = [
+            e for e in managed if e.status == CourseEnrollment.Status.APPROVED
+        ]
+        rejected_enrollments = [
+            e for e in managed if e.status == CourseEnrollment.Status.REJECTED
+        ]
+
     return render(
         request,
         "courses/course_detail.html",
@@ -455,7 +670,9 @@ def course_detail(request, pk):
             "course": course,
             "can_manage": can_manage,
             "is_enrolled": enrolled,
+            "enrollment_status": my_status,
             "can_study": can_manage or enrolled,
+            "can_review": _can_review_course(request.user, course),
             "reviews": course.reviews.all(),
             "user_review": user_review,
             "review_form": review_form,
@@ -466,6 +683,9 @@ def course_detail(request, pk):
                 "section_reorder", kwargs={"course_pk": course.pk}
             ),
             "lesson_reorder_url_template": lesson_reorder_template,
+            "pending_enrollments": pending_enrollments,
+            "approved_enrollments": approved_enrollments,
+            "rejected_enrollments": rejected_enrollments,
         },
     )
 
@@ -491,16 +711,35 @@ def _reorder_by_ids(*, queryset, ordered_ids, label: str):
     return JsonResponse({"ok": True, "count": len(ordered_ids)})
 
 
+def _apply_visibility_transition(course: Course, old_visibility: str, new_visibility: str) -> None:
+    if old_visibility == new_visibility:
+        return
+    # Private → Public: auto-approve pending requests
+    if (
+        old_visibility == Course.Visibility.PRIVATE
+        and new_visibility == Course.Visibility.PUBLIC
+    ):
+        CourseEnrollment.objects.filter(
+            course=course, status=CourseEnrollment.Status.PENDING
+        ).update(
+            status=CourseEnrollment.Status.APPROVED,
+            responded_at=timezone.now(),
+        )
+    # Public → Private: keep existing enrollments approved
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def course_edit(request, pk):
     course = get_object_or_404(Course, pk=pk)
     require_course_manage(request.user, course)
     lang = request_app_lang(request)
+    old_visibility = course.visibility
     form = CourseForm(request.POST or None, request.FILES or None, instance=course, user=request.user, lang=lang)
     _localize_course_form(form, lang)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        saved = form.save()
+        _apply_visibility_transition(saved, old_visibility, saved.visibility)
         messages.success(request, t(request_app_lang(request), "course_updated"))
         return redirect("course_detail", pk=course.pk)
     return render(

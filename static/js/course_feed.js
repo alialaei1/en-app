@@ -20,10 +20,11 @@
       ? searchForm.querySelector('input[name="f"]')
       : null;
 
+    const defaultFilter = root.dataset.defaultFilter || "suggested";
     let page = Number(root.dataset.page || 1) || 1;
     let hasMore = root.dataset.hasMore === "1";
     let loading = false;
-    let activeFilter = root.dataset.activeFilter || "";
+    let activeFilter = root.dataset.activeFilter || defaultFilter;
     let query = root.dataset.query || "";
     let abortController = null;
     let observer = null;
@@ -40,7 +41,7 @@
         chip.classList.toggle("is-active", key === activeFilter);
       });
       if (filterInput) {
-        if (activeFilter && activeFilter !== "suggested") {
+        if (activeFilter && activeFilter !== defaultFilter) {
           filterInput.value = activeFilter;
           filterInput.disabled = false;
         } else {
@@ -58,7 +59,7 @@
       }
       clearLink.hidden = false;
       const params = new URLSearchParams();
-      if (activeFilter && activeFilter !== "suggested") params.set("f", activeFilter);
+      if (activeFilter && activeFilter !== defaultFilter) params.set("f", activeFilter);
       const qs = params.toString();
       clearLink.href = endpoint + (qs ? "?" + qs : "");
     }
@@ -121,7 +122,7 @@
       const params = new URLSearchParams();
       const f = opts && opts.filter != null ? opts.filter : activeFilter;
       const q = opts && opts.query != null ? opts.query : query;
-      if (f && f !== "suggested") params.set("f", f);
+      if (f && f !== defaultFilter) params.set("f", f);
       if (q) params.set("q", q);
       if (nextPage > 1) params.set("page", String(nextPage));
       const qs = params.toString();
@@ -225,7 +226,7 @@
     root.querySelectorAll("[data-course-feed-filter]").forEach(function (chip) {
       chip.addEventListener("click", function (event) {
         event.preventDefault();
-        const key = chip.getAttribute("data-course-feed-filter") || "suggested";
+        const key = chip.getAttribute("data-course-feed-filter") || defaultFilter;
         if (key === activeFilter && !loading) return;
         resetAndLoad({ filter: key, query: query });
       });
@@ -274,7 +275,7 @@
     window.addEventListener("popstate", function () {
       if (!root.dataset.history || root.dataset.history === "0") return;
       const params = new URLSearchParams(window.location.search);
-      activeFilter = (params.get("f") || "suggested").toLowerCase();
+      activeFilter = (params.get("f") || defaultFilter).toLowerCase();
       query = (params.get("q") || "").trim();
       const qInput = searchForm ? searchForm.querySelector('input[name="q"]') : null;
       if (qInput) qInput.value = query;
