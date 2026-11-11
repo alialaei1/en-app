@@ -18,13 +18,30 @@
         <p class="mv-eyebrow truncate" dir="ltr">{{ course.title }} · {{ section.title }}</p>
         <h1 class="mv-title study-lesson-title" dir="ltr">{{ lesson.title }}</h1>
       </div>
-      <a
-        id="study-exit"
-        href="{% url 'course_detail' course.pk %}"
-        class="mv-btn mv-btn-danger shrink-0 study-exit-btn"
-      >
-        {{ ui.exit_study }}
-      </a>
+      <div class="study-topbar-actions">
+        <button
+          type="button"
+          class="study-icon-btn"
+          data-study-settings-open
+          aria-haspopup="dialog"
+          aria-controls="study-settings-modal"
+          title="{{ ui.lesson_study_settings }}"
+          aria-label="{{ ui.lesson_study_settings }}"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.7" />
+            <circle cx="12" cy="12" r="1.7" />
+            <circle cx="19" cy="12" r="1.7" />
+          </svg>
+        </button>
+        <a
+          id="study-exit"
+          href="{% url 'course_detail' course.pk %}"
+          class="mv-btn mv-btn-danger shrink-0 study-exit-btn"
+        >
+          {{ ui.exit_study }}
+        </a>
+      </div>
     </div>
 
     <section id="study-setup" class="study-setup mv-card">
@@ -57,49 +74,6 @@
         <div id="setup-level-stats" class="setup-level-grid"></div>
       </div>
 
-      <details class="study-setup-settings">
-        <summary class="study-setup-settings-summary">
-          <span>{{ ui.lesson_study_settings }}</span>
-          <span class="study-setup-settings-hint">{{ ui.settings_saved_lesson_hint }}</span>
-        </summary>
-        <div class="study-setup-settings-body">
-          <label class="study-setup-setting-card">
-            <span class="study-setup-stat-label">{{ ui.playback_speed }}</span>
-            <div class="study-setup-speed-row">
-              <input
-                id="setting-playback-rate"
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.05"
-                value="1"
-                class="w-full accent-emerald-500"
-              />
-              <span id="setting-playback-rate-label" class="study-setup-speed-label">1.00×</span>
-            </div>
-          </label>
-
-          <label class="study-setup-setting-card study-setup-autoplay">
-            <span>
-              <span class="study-setup-stat-label">{{ ui.autoplay_on_card }}</span>
-              <span class="study-setup-autoplay-help">{{ ui.autoplay_help }}</span>
-            </span>
-            <input
-              id="setting-autoplay"
-              type="checkbox"
-              class="h-5 w-5 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500/40"
-            />
-          </label>
-
-          <div class="study-setup-settings-actions">
-            <button type="button" id="settings-save" class="study-setup-mini-btn is-save">
-              {{ ui.save_settings }}
-            </button>
-            <p id="settings-status" class="study-setup-settings-status"></p>
-          </div>
-        </div>
-      </details>
-
       <div class="study-setup-actions">
         <button type="button" id="setup-start-all" class="study-setup-start-btn is-primary">
           {{ ui.study_all_cards }}
@@ -130,6 +104,34 @@
             <p id="study-best-record">{{ ui.best_label }}: —</p>
             <p id="study-timer-status">{{ ui.waiting_play_meaning }}</p>
           </div>
+          <div class="study-card-tools">
+            <button
+              type="button"
+              id="study-toggle-meaning"
+              class="study-icon-btn"
+              aria-pressed="false"
+              title="{{ ui.show_meaning }}"
+              aria-label="{{ ui.show_meaning }}"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                <path d="M4 6.5h11a3 3 0 0 1 3 3V18l-4.2-2.4H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z" stroke-linejoin="round"/>
+                <path d="M7 10.2h7M7 13h4.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              id="study-reveal-all"
+              class="study-icon-btn"
+              aria-pressed="false"
+              title="{{ ui.reveal_all_words }}"
+              aria-label="{{ ui.reveal_all_words }}"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                <path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="2.6"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div
@@ -147,9 +149,6 @@
           </button>
           <button type="button" id="study-stop" class="study-btn study-btn-stop" disabled>
             {{ ui.stop }}
-          </button>
-          <button type="button" id="study-toggle-meaning" class="study-btn study-btn-ghost">
-            {{ ui.show_meaning }}
           </button>
         </div>
 
@@ -269,6 +268,64 @@
       </div>
       <div class="study-video-dock__resize" data-dock-resize title="{{ ui.resize_video }}"></div>
       <p class="study-video-dock__hint">{{ ui.drag_video_hint }}</p>
+    </div>
+
+    <div
+      id="study-settings-modal"
+      class="mv-modal study-settings-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="study-settings-modal-title"
+      hidden
+    >
+      <button type="button" class="mv-modal-backdrop" data-study-settings-close aria-label="{{ ui.close }}"></button>
+      <div class="mv-modal-panel study-settings-panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <div class="mv-modal-head">
+          <div class="min-w-0">
+            <h2 id="study-settings-modal-title" class="text-lg font-semibold text-white">{{ ui.lesson_study_settings }}</h2>
+            <p class="mt-1 text-xs text-slate-500">{{ ui.settings_saved_lesson_hint }}</p>
+          </div>
+          <button type="button" class="mv-btn mv-btn-ghost shrink-0" style="min-height:2.35rem" data-study-settings-close>
+            {{ ui.close }}
+          </button>
+        </div>
+        <div class="mv-modal-body study-setup-settings-body">
+          <label class="study-setup-setting-card">
+            <span class="study-setup-stat-label">{{ ui.playback_speed }}</span>
+            <div class="study-setup-speed-row">
+              <input
+                id="setting-playback-rate"
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.05"
+                value="1"
+                class="w-full accent-emerald-500"
+              />
+              <span id="setting-playback-rate-label" class="study-setup-speed-label">1.00×</span>
+            </div>
+          </label>
+
+          <label class="study-setup-setting-card study-setup-autoplay">
+            <span>
+              <span class="study-setup-stat-label">{{ ui.autoplay_on_card }}</span>
+              <span class="study-setup-autoplay-help">{{ ui.autoplay_help }}</span>
+            </span>
+            <input
+              id="setting-autoplay"
+              type="checkbox"
+              class="h-5 w-5 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500/40"
+            />
+          </label>
+
+          <div class="study-setup-settings-actions">
+            <button type="button" id="settings-save" class="study-setup-mini-btn is-save">
+              {{ ui.save_settings }}
+            </button>
+            <p id="settings-status" class="study-setup-settings-status"></p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 {% endblock %}

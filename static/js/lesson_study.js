@@ -66,6 +66,8 @@
   const pauseBtn = document.getElementById("study-pause");
   const stopBtn = document.getElementById("study-stop");
   const meaningBtn = document.getElementById("study-toggle-meaning");
+  const revealAllBtn = document.getElementById("study-reveal-all");
+  const settingsModal = document.getElementById("study-settings-modal");
   let mediaSessionState = "stopped";
   const levelsEl = document.getElementById("study-levels");
   const levelStatus = document.getElementById("study-level-status");
@@ -76,6 +78,7 @@
   const video = document.getElementById("study-video");
   const videoDock = document.getElementById("study-video-dock");
   const videoDockChrome = videoDock ? videoDock.querySelector("[data-dock-drag]") : null;
+  const videoDockBody = videoDock ? videoDock.querySelector(".study-video-dock__body") : null;
   const videoDockResize = videoDock ? videoDock.querySelector("[data-dock-resize]") : null;
   const videoMinimizeBtn = document.getElementById("study-video-minimize");
   const videoSizeSmBtn = document.getElementById("study-video-size-sm");
@@ -503,6 +506,13 @@
     }
     if (videoSizeMdBtn) {
       videoSizeMdBtn.addEventListener("click", () => setVideoDockSizePreset("md"));
+    }
+    if (videoDockBody) {
+      videoDockBody.addEventListener("click", (event) => {
+        if (event.target.closest("[data-dock-resize]")) return;
+        event.preventDefault();
+        toggleCardMediaPlayback();
+      });
     }
     window.addEventListener("resize", () => {
       if (!videoDockVisible) return;
@@ -939,6 +949,16 @@
           Number.isFinite(Number(ev.start_sec)) &&
           Number.isFinite(Number(ev.end_sec)) &&
           Number(ev.end_sec) >= Number(ev.start_sec);
+        const revealLabel = revealed ? t("hide", "Hide") : t("show", "Show");
+        const playLabel = canPlay
+          ? t("play_word", "Play word")
+          : t("no_synced_audio", "No synced audio");
+        const leitnerLabel = t("leitner", "Leitner");
+        const revealIcon = revealed
+          ? `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6"/></svg>`
+          : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M3 3l18 18" stroke-linecap="round"/><path d="M10.6 10.7a2.6 2.6 0 0 0 3.7 3.7" stroke-linecap="round"/><path d="M9.9 5.6A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.3 3.8M6.1 6.2C3.9 7.8 2.5 12 2.5 12S6 18.5 12 18.5c1.3 0 2.5-.3 3.6-.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        const playIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8.2 5.8v12.4c0 .7.8 1.1 1.4.7l9.2-5.7c.6-.4.6-1.2 0-1.5L9.6 5.1c-.6-.4-1.4 0-1.4.7Z"/></svg>`;
+        const leitnerIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="4.5" y="5.5" width="12.5" height="9.5" rx="1.4"/><path d="M7 17.5h10.2a1.8 1.8 0 0 0 1.8-1.8V8" stroke-linecap="round"/><path d="M8.2 19.5h9.2" stroke-linecap="round"/></svg>`;
         html +=
           `<span class="study-hl-wrap${open ? " is-open" : ""}" data-id="${ev.id}">` +
           `<mark class="study-mark${stateClass}" data-id="${ev.id}" title="${
@@ -948,14 +968,13 @@
                 ? t("highlighted_word", "Highlighted word")
                 : t("hidden_word_tap", "Hidden word — tap for options")
           }"><span class="study-word-text">${snippet}</span></mark>` +
-          `<span class="study-hl-pop" role="dialog" aria-label="Highlight tools">` +
+          `<span class="study-hl-pop" role="dialog" aria-label="${t("highlight_tools", "Highlight tools")}">` +
           `<span class="study-hl-actions">` +
-          `<button type="button" class="hl-reveal" data-id="${ev.id}">${
-            revealed ? t("hide", "Hide") : t("show", "Show")
-          }</button>` +
+          `<button type="button" class="hl-reveal" data-id="${ev.id}" title="${revealLabel}" aria-label="${revealLabel}" aria-pressed="${revealed ? "true" : "false"}">${revealIcon}</button>` +
           `<button type="button" class="hl-play" data-id="${ev.id}" ${
             canPlay ? "" : "disabled"
-          } title="${canPlay ? t("play_word", "Play word") : t("no_synced_audio", "No synced audio")}">${t("play", "▶ Play")}</button>` +
+          } title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>` +
+          `<button type="button" class="hl-leitner" data-id="${ev.id}" title="${leitnerLabel}" aria-label="${leitnerLabel}">${leitnerIcon}</button>` +
           `</span>` +
           `<span class="study-hl-meaning${meaning ? "" : " is-empty"}" dir="auto">${
             meaning ? escapeHtml(meaning) : t("no_meaning", "No meaning")
@@ -1272,6 +1291,112 @@
     setPlayingUI("paused");
   }
 
+  function toggleCardMediaPlayback() {
+    const chunk = currentChunk();
+    if (!chunkMediaUrl(chunk)) return;
+    if (mediaSessionState === "playing") {
+      pauseMedia();
+      return;
+    }
+    playFullCard({ startTimer: true });
+  }
+
+  function studyToolIcon(kind) {
+    if (kind === "meaning-on") {
+      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 6.5h11a3 3 0 0 1 3 3V18l-4.2-2.4H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 10.2h7M7 13h4.5" stroke-linecap="round"/><path d="M3.2 3.2l17.6 17.6" stroke-linecap="round"/></svg>`;
+    }
+    if (kind === "meaning-off") {
+      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 6.5h11a3 3 0 0 1 3 3V18l-4.2-2.4H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z" stroke-linejoin="round"/><path d="M7 10.2h7M7 13h4.5" stroke-linecap="round"/></svg>`;
+    }
+    if (kind === "eye-off") {
+      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M3 3l18 18" stroke-linecap="round"/><path d="M10.6 10.7a2.6 2.6 0 0 0 3.7 3.7" stroke-linecap="round"/><path d="M9.9 5.6A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.3 3.8M6.1 6.2C3.9 7.8 2.5 12 2.5 12S6 18.5 12 18.5c1.3 0 2.5-.3 3.6-.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6"/></svg>`;
+  }
+
+  function updateMeaningBtnUI() {
+    if (!meaningBtn) return;
+    const chunk = currentChunk();
+    const hasMeaning = Boolean(chunk && (chunk.sentence_meaning || "").trim());
+    meaningBtn.disabled = !hasMeaning;
+    const label = meaningOpen
+      ? t("hide_meaning", "Hide meaning")
+      : hasMeaning
+        ? t("show_meaning", "Show meaning")
+        : t("no_sentence_meaning", "No sentence meaning");
+    meaningBtn.title = label;
+    meaningBtn.setAttribute("aria-label", label);
+    meaningBtn.setAttribute("aria-pressed", meaningOpen && hasMeaning ? "true" : "false");
+    meaningBtn.innerHTML = studyToolIcon(meaningOpen && hasMeaning ? "meaning-off" : "meaning-on");
+  }
+
+  function areAllHighlightsRevealed() {
+    const chunk = currentChunk();
+    const highlights = (chunk && chunk.highlights) || [];
+    if (!highlights.length) return false;
+    return highlights.every((item) => {
+      const id = Number(item.id);
+      return (
+        typedCompleteHighlightIds.has(id) ||
+        typedMatchedHighlightIds.has(id) ||
+        revealedHighlightIds.has(id)
+      );
+    });
+  }
+
+  function updateRevealAllBtnUI() {
+    if (!revealAllBtn) return;
+    const chunk = currentChunk();
+    const highlights = (chunk && chunk.highlights) || [];
+    const allRevealed = areAllHighlightsRevealed();
+    revealAllBtn.disabled = !highlights.length;
+    const label = allRevealed
+      ? t("hide_all_words", "Hide all words")
+      : t("reveal_all_words", "Reveal all words");
+    revealAllBtn.title = label;
+    revealAllBtn.setAttribute("aria-label", label);
+    revealAllBtn.setAttribute("aria-pressed", allRevealed ? "true" : "false");
+    revealAllBtn.innerHTML = studyToolIcon(allRevealed ? "eye" : "eye-off");
+  }
+
+  function toggleRevealAllHiddenWords() {
+    const chunk = currentChunk();
+    const highlights = (chunk && chunk.highlights) || [];
+    if (!highlights.length) return;
+    if (areAllHighlightsRevealed()) {
+      highlights.forEach((item) => {
+        const id = Number(item.id);
+        if (typedCompleteHighlightIds.has(id) || typedMatchedHighlightIds.has(id)) return;
+        revealedHighlightIds.delete(id);
+      });
+    } else {
+      highlights.forEach((item) => {
+        revealedHighlightIds.add(Number(item.id));
+      });
+    }
+    setActiveHighlight(null, { rerender: true });
+    updateRevealAllBtnUI();
+  }
+
+  function openStudySettingsModal() {
+    if (!settingsModal) return;
+    syncSettingsForm();
+    settingsModal.classList.remove("hidden");
+    settingsModal.removeAttribute("hidden");
+    document.body.classList.add("mv-modal-open");
+    const closeBtn = settingsModal.querySelector("[data-study-settings-close].mv-btn");
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeStudySettingsModal() {
+    if (!settingsModal || settingsModal.hasAttribute("hidden")) return;
+    settingsModal.classList.add("hidden");
+    settingsModal.setAttribute("hidden", "");
+    if (!document.querySelector(".mv-modal:not([hidden])")) {
+      document.body.classList.remove("mv-modal-open");
+    }
+  }
+
   function resumeMedia({ startTimer = true } = {}) {
     const chunk = currentChunk();
     const media = ensureCardMedia(chunk);
@@ -1447,6 +1572,7 @@
           return `<div class="study-line">${painted || "&nbsp;"}</div>`;
         })
         .join("") || '<div class="study-line">&nbsp;</div>';
+    updateRevealAllBtnUI();
     window.requestAnimationFrame(positionActiveHighlightPop);
   }
 
@@ -1676,11 +1802,8 @@
     if (pauseBtn) pauseBtn.disabled = true;
     if (stopBtn) stopBtn.disabled = true;
     mediaSessionState = "stopped";
-    if (meaningBtn) {
-      const hasMeaning = Boolean((chunk.sentence_meaning || "").trim());
-      meaningBtn.disabled = !hasMeaning;
-      meaningBtn.textContent = hasMeaning ? t("show_meaning", "Show meaning") : t("no_sentence_meaning", "No sentence meaning");
-    }
+    updateMeaningBtnUI();
+    updateRevealAllBtnUI();
     if (prevBtn) prevBtn.disabled = index <= 0;
     if (nextBtn) {
       nextBtn.disabled = false;
@@ -1846,17 +1969,12 @@
 
   function hideSentenceMeaningToast({ resetText = false, text = "" } = {}) {
     meaningOpen = false;
-    if (!sentenceMeaningEl) return;
-    sentenceMeaningEl.classList.remove("is-visible");
-    sentenceMeaningEl.classList.add("hidden");
-    if (resetText) sentenceMeaningEl.textContent = text;
-    if (meaningBtn) {
-      const chunk = currentChunk();
-      const hasMeaning = Boolean(chunk && (chunk.sentence_meaning || "").trim());
-      meaningBtn.textContent = hasMeaning
-        ? t("show_meaning", "Show meaning")
-        : t("no_sentence_meaning", "No sentence meaning");
+    if (sentenceMeaningEl) {
+      sentenceMeaningEl.classList.remove("is-visible");
+      sentenceMeaningEl.classList.add("hidden");
+      if (resetText) sentenceMeaningEl.textContent = text;
     }
+    updateMeaningBtnUI();
   }
 
   function showSentenceMeaningToast(text) {
@@ -1867,7 +1985,7 @@
     window.requestAnimationFrame(function () {
       sentenceMeaningEl.classList.add("is-visible");
     });
-    if (meaningBtn) meaningBtn.textContent = t("hide_meaning", "Hide meaning");
+    updateMeaningBtnUI();
   }
 
   if (meaningBtn) {
@@ -1883,12 +2001,36 @@
     });
   }
 
+  if (revealAllBtn) {
+    revealAllBtn.addEventListener("click", () => toggleRevealAllHiddenWords());
+  }
+
+  document.querySelectorAll("[data-study-settings-open]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      openStudySettingsModal();
+    });
+  });
+  if (settingsModal) {
+    settingsModal.querySelectorAll("[data-study-settings-close]").forEach((el) => {
+      el.addEventListener("click", () => closeStudySettingsModal());
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (settingsModal && !settingsModal.hasAttribute("hidden")) {
+      closeStudySettingsModal();
+    }
+  });
+
   if (sentenceMeaningEl) {
     sentenceMeaningEl.addEventListener("click", () => hideSentenceMeaningToast());
   }
 
   syncSettingsForm();
   applyAudioRate();
+  updateMeaningBtnUI();
+  updateRevealAllBtnUI();
 
   if (typeInput) {
     const onType = () => {
@@ -1956,6 +2098,16 @@
         if (revealedHighlightIds.has(id)) revealedHighlightIds.delete(id);
         else revealedHighlightIds.add(id);
         setActiveHighlight(highlight, { rerender: true });
+        return;
+      }
+
+      const leitnerBtnEl = event.target.closest(".hl-leitner");
+      if (leitnerBtnEl) {
+        event.preventDefault();
+        event.stopPropagation();
+        // Placeholder — Leitner behavior comes later.
+        const highlight = findHighlight(leitnerBtnEl.dataset.id);
+        if (highlight) setActiveHighlight(highlight, { rerender: false });
         return;
       }
 

@@ -366,6 +366,9 @@ UI_STRINGS = {
         "show_meaning": "Show meaning",
         "hide_meaning": "Hide meaning",
         "no_sentence_meaning": "No sentence meaning",
+        "reveal_all_words": "Reveal all words",
+        "hide_all_words": "Hide all words",
+
         "your_level": "Your level for this card",
         "level_scale_hint": "1 = just starting · 7 = know it very well",
         "previous": "← Previous",
@@ -396,6 +399,9 @@ UI_STRINGS = {
         "play": "▶ Play",
         "hide": "Hide",
         "show": "Show",
+        "leitner": "Leitner",
+        "highlight_tools": "Highlight tools",
+
         "no_meaning": "No meaning",
         "nice_match": "Nice — this card matches.",
         "live_match": "Live match {matched} / {expected} words · updates as you type",
@@ -887,6 +893,9 @@ UI_STRINGS = {
         "show_meaning": "نمایش معنی",
         "hide_meaning": "مخفی کردن معنی",
         "no_sentence_meaning": "بدون معنی جمله",
+        "reveal_all_words": "نمایش همه کلمات",
+        "hide_all_words": "مخفی کردن همه کلمات",
+
         "your_level": "سطح تو برای این کارت",
         "level_scale_hint": "۱ = تازه شروع · ۷ = خیلی خوب بلدم",
         "previous": "← قبلی",
@@ -917,6 +926,9 @@ UI_STRINGS = {
         "play": "▶ پخش",
         "hide": "مخفی",
         "show": "نمایش",
+        "leitner": "لایتنر",
+        "highlight_tools": "ابزارهای هایلایت",
+
         "no_meaning": "بدون معنی",
         "nice_match": "عالی — این کارت منطبق شد.",
         "live_match": "انطباق زنده {matched} / {expected} کلمه · همزمان با تایپ",

@@ -1955,6 +1955,75 @@ body.mv-modal-open {
   overflow: hidden;
 }
 
+.mv-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .mv-modal {
+    align-items: center;
+    padding: 1.25rem;
+  }
+}
+
+.mv-modal.hidden,
+.mv-modal[hidden] {
+  display: none !important;
+}
+
+.mv-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.mv-modal-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 34rem;
+  max-height: min(88dvh, 44rem);
+  overflow: hidden;
+  border-radius: 1.35rem 1.35rem 0 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, #0c1220 94%, transparent);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 640px) {
+  .mv-modal-panel {
+    border-radius: 1.35rem;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.mv-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.mv-modal-body {
+  overflow-y: auto;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Course create / edit form */
 .mv-course-form-page {
   width: 100%;
@@ -2389,8 +2458,45 @@ body.mv-studying .mv-bottom-nav {
   transition: width 0.25s ease;
 }
 
+.study-topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.study-icon-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--mv-border) 90%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--mv-surface-2) 88%, transparent);
+  color: var(--mv-text-soft);
+  cursor: pointer;
+}
+
+.study-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.study-card-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
 .study-timer-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.5rem;
@@ -2584,7 +2690,7 @@ body.mv-studying .mv-bottom-nav {
 
 .study-media-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
   margin-top: 0.45rem;
 }
@@ -2826,24 +2932,25 @@ body.mv-studying .mv-bottom-nav {
 
 #study-card-text .study-hl-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 #study-card-text .study-hl-actions button {
-  border-radius: 0.55rem;
-  border: 0;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--mv-border) 85%, transparent);
   background: var(--mv-study-pop-action-bg);
   color: var(--mv-study-pop-action-text);
-  padding: 0.3rem 0.55rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.2;
+  padding: 0;
   cursor: pointer;
-}
-
-#study-card-text .study-hl-actions button:hover:not(:disabled) {
-  filter: brightness(0.96);
 }
 
 #study-card-text .study-hl-actions button:disabled {
@@ -3389,9 +3496,8 @@ body.mv-studying .mv-bottom-nav {
 
 @media (max-width: 767px) {
   #study-card-text .study-hl-actions button {
-    min-height: 1.9rem;
-    padding: 0.3rem 0.55rem;
-    font-size: 0.72rem;
+    width: 1.9rem;
+    height: 1.9rem;
   }
 
   #study-root {
@@ -3547,6 +3653,7 @@ body.mv-studying .mv-bottom-nav {
   flex: 1;
   min-height: 0;
   background: #000;
+  cursor: pointer;
 }
 
 .study-video-dock__player {
@@ -3556,6 +3663,17 @@ body.mv-studying .mv-bottom-nav {
   object-fit: contain;
   background: #000;
   pointer-events: none;
+}
+
+.study-settings-panel {
+  max-width: 28rem;
+}
+
+.study-settings-modal .study-setup-settings-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  border-top: 0;
 }
 
 .study-video-dock__resize {
