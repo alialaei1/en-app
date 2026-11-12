@@ -48,6 +48,11 @@ class Profile(models.Model):
         default=LearningLanguage.EN,
         help_text="Language you are learning.",
     )
+    ui_prefs = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Per-user UI prefs (e.g. study video dock position/size).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -71,6 +76,43 @@ class Profile(models.Model):
         if self.theme == self.Theme.SYSTEM:
             return self.Theme.DARK  # server-side fallback; JS refines with prefers-color-scheme
         return self.theme
+
+    def get_video_dock(self) -> dict | None:
+        return normalize_video_dock((self.ui_prefs or {}).get("video_dock"))
+
+    def set_video_dock(self, dock) -> dict | None:
+        normalized = normalize_video_dock(dock)
+        prefs = dict(self.ui_prefs or {})
+        if normalized is None:
+            prefs.pop("video_dock", None)
+        else:
+            prefs["video_dock"] = normalized
+        self.ui_prefs = prefs
+        self.save(update_fields=["ui_prefs", "updated_at"])
+        return normalized
+
+
+def normalize_video_dock(raw) -> dict | None:
+    """Sanitize floating study-video window geometry for a user."""
+    if not isinstance(raw, dict):
+        return None
+    out: dict = {}
+    for key in ("x", "y", "w", "h"):
+        try:
+            value = float(raw.get(key))
+        except (TypeError, ValueError):
+            continue
+        if value != value:  # NaN
+            continue
+        out[key] = round(value, 1)
+    if "w" in out:
+        out["w"] = max(140.0, min(640.0, out["w"]))
+    if "h" in out:
+        out["h"] = max(90.0, min(480.0, out["h"]))
+    if not out:
+        return None
+    out["minimized"] = bool(raw.get("minimized"))
+    return out
 
 
 class UserLimits(models.Model):

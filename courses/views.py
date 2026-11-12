@@ -1158,6 +1158,8 @@ def lesson_study(request, pk):
 @login_required
 @require_POST
 def lesson_study_settings(request, pk):
+    from accounts.models import ensure_profile
+
     lesson = get_object_or_404(
         Lesson.objects.select_related("section__course"),
         pk=pk,
@@ -1168,9 +1170,17 @@ def lesson_study_settings(request, pk):
         updates["playback_rate"] = request.POST.get("playback_rate")
     if "autoplay" in request.POST:
         updates["autoplay"] = request.POST.get("autoplay")
+    if "video_dock" in request.POST:
+        updates["video_dock"] = request.POST.get("video_dock")
     try:
         row = UserLessonStudySettings.for_user_lesson(request.user, lesson)
-        settings_data = row.update_settings(**updates)
+        settings_data = row.update_settings(**updates) if updates else row.get_settings()
+        if "video_dock" in settings_data:
+            ensure_profile(request.user).set_video_dock(settings_data["video_dock"])
+        else:
+            profile_dock = ensure_profile(request.user).get_video_dock()
+            if profile_dock is not None:
+                settings_data["video_dock"] = profile_dock
     except ValueError as exc:
         if _wants_json(request):
             return JsonResponse({"ok": False, "error": str(exc)}, status=400)

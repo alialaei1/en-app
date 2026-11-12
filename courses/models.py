@@ -367,6 +367,8 @@ class LessonChunk(OrderedModel):
 
 
 def normalize_study_settings(raw=None) -> dict:
+    from accounts.models import normalize_video_dock
+
     data = dict(Lesson.DEFAULT_STUDY_SETTINGS)
     if isinstance(raw, dict):
         data.update(raw)
@@ -376,10 +378,17 @@ def normalize_study_settings(raw=None) -> dict:
         rate = 1.0
     data["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
     data["autoplay"] = bool(data.get("autoplay", False))
+    dock = normalize_video_dock(data.get("video_dock"))
+    if dock is None:
+        data.pop("video_dock", None)
+    else:
+        data["video_dock"] = dock
     return data
 
 
 def apply_study_settings_updates(current: dict, **updates) -> dict:
+    from accounts.models import normalize_video_dock
+
     current = normalize_study_settings(current)
     if "playback_rate" in updates and updates["playback_rate"] is not None:
         try:
@@ -398,6 +407,19 @@ def apply_study_settings_updates(current: dict, **updates) -> dict:
             }
         else:
             current["autoplay"] = bool(value)
+    if "video_dock" in updates and updates["video_dock"] is not None:
+        raw = updates["video_dock"]
+        if isinstance(raw, str):
+            import json
+
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError("video_dock must be valid JSON") from exc
+        dock = normalize_video_dock(raw)
+        if dock is None:
+            raise ValueError("video_dock is invalid")
+        current["video_dock"] = dock
     return current
 
 

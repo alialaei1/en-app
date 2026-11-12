@@ -85,7 +85,8 @@
   const videoSizeSmBtn = document.getElementById("study-video-size-sm");
   const videoSizeMdBtn = document.getElementById("study-video-size-md");
 
-  const VIDEO_DOCK_KEY = "mimivo.studyVideoDock.v2";
+  const studyUserId = lesson.user_id != null ? String(lesson.user_id) : "anon";
+  const VIDEO_DOCK_KEY = `mimivo.studyVideoDock.v3.u${studyUserId}`;
   let videoDockState = {
     x: null,
     y: null,
@@ -94,6 +95,7 @@
     minimized: false,
   };
   let videoDockVisible = false;
+  let videoDockSaveTimer = 0;
 
   let queue = [];
   let index = 0;
@@ -419,19 +421,37 @@
     return { x, y };
   }
 
+  function normalizeDockState(parsed) {
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      x: Number.isFinite(Number(parsed.x)) ? Number(parsed.x) : null,
+      y: Number.isFinite(Number(parsed.y)) ? Number(parsed.y) : null,
+      w: Number.isFinite(Number(parsed.w)) ? Number(parsed.w) : null,
+      h: Number.isFinite(Number(parsed.h)) ? Number(parsed.h) : null,
+      minimized: Boolean(parsed.minimized),
+    };
+  }
+
   function loadVideoDockState() {
+    // Prefer per-user server prefs, then per-user local cache.
+    const fromSettings = normalizeDockState(
+      (studySettings && studySettings.video_dock) ||
+        (lesson.settings && lesson.settings.video_dock) ||
+        null
+    );
+    if (fromSettings) {
+      videoDockState = fromSettings;
+      try {
+        localStorage.setItem(VIDEO_DOCK_KEY, JSON.stringify(videoDockState));
+      } catch (_) {}
+      return;
+    }
     try {
       const raw = localStorage.getItem(VIDEO_DOCK_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") return;
-      videoDockState = {
-        x: Number.isFinite(parsed.x) ? parsed.x : null,
-        y: Number.isFinite(parsed.y) ? parsed.y : null,
-        w: Number.isFinite(parsed.w) ? parsed.w : null,
-        h: Number.isFinite(parsed.h) ? parsed.h : null,
-        minimized: Boolean(parsed.minimized),
-      };
+      const parsed = normalizeDockState(JSON.parse(raw));
+      if (!parsed) return;
+      videoDockState = parsed;
     } catch (_) {
       /* ignore */
     }
@@ -442,6 +462,43 @@
       localStorage.setItem(VIDEO_DOCK_KEY, JSON.stringify(videoDockState));
     } catch (_) {
       /* ignore */
+    }
+    if (studySettings) {
+      studySettings.video_dock = { ...videoDockState };
+      lesson.settings = studySettings;
+    }
+    scheduleVideoDockServerSave();
+  }
+
+  function scheduleVideoDockServerSave() {
+    if (!lesson.settings_url || !csrf) return;
+    if (videoDockSaveTimer) window.clearTimeout(videoDockSaveTimer);
+    videoDockSaveTimer = window.setTimeout(() => {
+      videoDockSaveTimer = 0;
+      persistVideoDockToServer();
+    }, 450);
+  }
+
+  async function persistVideoDockToServer() {
+    if (!lesson.settings_url || !csrf) return;
+    const formData = new FormData();
+    formData.append("video_dock", JSON.stringify(videoDockState));
+    formData.append("csrfmiddlewaretoken", csrf);
+    try {
+      const response = await fetch(lesson.settings_url, {
+        method: "POST",
+        body: formData,
+        headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrf },
+        credentials: "same-origin",
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) return;
+      if (payload.settings && payload.settings.video_dock) {
+        studySettings = { ...studySettings, ...payload.settings };
+        lesson.settings = studySettings;
+      }
+    } catch (_) {
+      /* ignore offline / transient errors; local cache still keeps it */
     }
   }
 
@@ -1439,12 +1496,46 @@
     repeatCardBtn.setAttribute("aria-label", label);
   }
 
+  function resetCardProgressState(chunk) {
+    meaningOpen = false;
+    stopSpeechRecognition({ keepHint: true });
+    revealedHighlightIds = new Set();
+    typedMatchedEnd = -1;
+    typedMatchedHighlightIds = new Set();
+    typedCompleteHighlightIds = new Set();
+    activeHighlight = null;
+    activeHighlightId = null;
+    speechBase = "";
+    speechSessionPrefix = "";
+    if (typeInput) typeInput.value = "";
+    if (typeHint) {
+      typeHint.textContent = t(
+        "type_hint",
+        "Matching words turn green. Minor typos are OK. Highlights unlock when you reach them."
+      );
+    }
+    hideSentenceMeaningToast({
+      resetText: true,
+      text: (chunk && chunk.sentence_meaning) || "",
+    });
+    resetCardTimerIdle();
+    updateMeaningBtnUI();
+    updateRevealAllBtnUI();
+    renderCardText();
+  }
+
   async function repeatCurrentCard() {
     const chunk = currentChunk();
-    if (!chunkMediaUrl(chunk)) return;
-    // Force restart from the beginning (not resume-from-pause).
+    if (!chunk) return;
+    // Full card reset — same as if the card just loaded.
     stopAudio();
-    await playFullCard({ startTimer: false });
+    resetCardProgressState(chunk);
+    if (typeInput) {
+      window.setTimeout(() => typeInput.focus(), 30);
+    }
+    if (chunkMediaUrl(chunk)) {
+      await playFullCard({ startTimer: true });
+    }
   }
 
   function areAllHighlightsRevealed() {
@@ -1865,27 +1956,9 @@
       return;
     }
 
-    meaningOpen = false;
     stopAudio();
-    stopSpeechRecognition({ keepHint: true });
-    revealedHighlightIds = new Set();
-    typedMatchedEnd = -1;
-    typedMatchedHighlightIds = new Set();
-    typedCompleteHighlightIds = new Set();
-    activeHighlight = null;
-    activeHighlightId = null;
-    speechBase = "";
-    speechSessionPrefix = "";
-    if (typeInput) typeInput.value = "";
-    if (typeHint) {
-      typeHint.textContent =
-        t("type_hint", "Matching words turn green. Minor typos are OK. Highlights unlock when you reach them.");
-    }
-    hideSentenceMeaningToast({ resetText: true, text: chunk.sentence_meaning || "" });
-
     updateBestRecordLabel(chunk);
-    resetCardTimerIdle();
-    renderCardText();
+    resetCardProgressState(chunk);
 
     if (progressEl) {
       progressEl.textContent = t("card_of", "Card {current} of {total}", { current: index + 1, total: queue.length });

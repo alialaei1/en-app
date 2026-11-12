@@ -91,14 +91,22 @@ def study_lesson_payload(
                 level_counts[key] += 1
 
     if user is not None and getattr(user, "is_authenticated", False):
+        from accounts.models import ensure_profile
+
         settings_row = UserLessonStudySettings.for_user_lesson(user, lesson)
         settings_data = settings_row.get_settings()
+        profile_dock = ensure_profile(user).get_video_dock()
+        if profile_dock is not None:
+            settings_data["video_dock"] = profile_dock
+        user_id = user.pk
     else:
         settings_data = normalize_study_settings(None)
+        user_id = None
 
     return {
         "id": lesson.pk,
         "title": lesson.title,
+        "user_id": user_id,
         "exit_url": exit_url,
         "level_url_template": level_url_template,
         "record_url_template": record_url_template,
