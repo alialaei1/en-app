@@ -165,15 +165,20 @@ html[data-theme="light"] {
 }
 
 html {
-  scromv-behavior: smooth;
+  scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
   overflow-x: clip;
 }
 
 body.mv-body {
   margin: 0;
+  min-height: 100vh;
   min-height: 100dvh;
   overflow-x: clip;
+  overscroll-behavior-y: none;
   background:
     radial-gradient(900px 420px at 10% -10%, var(--mv-glow-a), transparent 55%),
     radial-gradient(700px 380px at 100% 0%, var(--mv-glow-b), transparent 45%),
@@ -182,23 +187,126 @@ body.mv-body {
   color: var(--mv-text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS Safari: fixed backgrounds are janky / can blank out */
+@supports (-webkit-touch-callout: none) {
+  body.mv-body {
+    background-attachment: scroll;
+  }
 }
 
 /* Avoid iOS zoom-on-focus; keep tap targets comfortable on phones */
 @media (max-width: 767px) {
+  body.mv-body {
+    background-attachment: scroll;
+  }
+
   input,
   textarea,
   select,
-  button {
-    font-size: 16px;
+  button,
+  .mv-field,
+  .study-type-input,
+  .mv-search-field input,
+  .mv-search input {
+    font-size: 16px !important;
   }
 
   .mv-btn,
   .mv-chip,
   .mv-nav-item,
-  .mv-icon-btn {
+  .mv-icon-btn,
+  .study-icon-btn,
+  .study-btn,
+  a,
+  button {
     touch-action: manipulation;
   }
+
+  /*
+    Safari iOS: backdrop-filter + large shadows on sticky/fixed chrome
+    are the main scroll jank source. Keep solid surfaces instead.
+  */
+  .mv-header,
+  .mv-bottom-nav,
+  .mv-card,
+  .mv-toast,
+  .mv-rotate-gate,
+  .study-setup-actions,
+  .study-video-dock,
+  .mv-modal-backdrop,
+  .mv-confirm-backdrop,
+  .mv-crop-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .mv-header {
+    background: var(--mv-bg-elevated);
+  }
+
+  .mv-bottom-nav {
+    background: var(--mv-bg-elevated);
+  }
+
+  .mv-card {
+    background: var(--mv-surface-solid);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  }
+
+  .mv-toast {
+    background: var(--mv-surface-solid);
+  }
+
+  .mv-btn-primary,
+  .mv-desk-cta,
+  .study-btn-play,
+  .study-btn-next {
+    box-shadow: none;
+  }
+
+  .mv-card-interactive {
+    transition: border-color 0.15s ease;
+  }
+
+  .mv-card-interactive:hover {
+    transform: none;
+  }
+
+  .study-speech-btn.is-listening {
+    animation: none;
+  }
+
+  .mv-course-tile {
+    content-visibility: auto;
+    contain-intrinsic-size: 320px;
+    background: var(--mv-surface-solid);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  }
+
+  .study-video-dock__player {
+    /* Keep video decoding on its own layer on iOS */
+    transform: translateZ(0);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html.mv-landscape-blocked,
+html.mv-landscape-blocked body {
+  overflow: hidden !important;
+  touch-action: none;
 }
 
 html[dir="rtl"] body.mv-body {
@@ -212,9 +320,67 @@ html[dir="rtl"] [dir="ltr"] {
 }
 
 .mv-shell {
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+}
+
+.mv-rotate-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: max(1.25rem, env(safe-area-inset-top, 0px))
+    max(1.25rem, env(safe-area-inset-right, 0px))
+    max(1.25rem, env(safe-area-inset-bottom, 0px))
+    max(1.25rem, env(safe-area-inset-left, 0px));
+  background: color-mix(in srgb, var(--mv-bg) 92%, #000);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mv-rotate-gate.is-visible,
+.mv-rotate-gate:not([hidden]) {
+  display: flex;
+}
+
+.mv-rotate-gate[hidden] {
+  display: none !important;
+}
+
+.mv-rotate-gate__card {
+  width: min(22rem, 100%);
+  text-align: center;
+  border-radius: 1.35rem;
+  border: 1px solid var(--mv-border);
+  background: color-mix(in srgb, var(--mv-surface-solid, var(--mv-surface)) 94%, transparent);
+  padding: 1.35rem 1.2rem 1.45rem;
+  box-shadow: var(--mv-shadow);
+}
+
+.mv-rotate-gate__icon {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 0.85rem;
+  color: var(--mv-accent);
+}
+
+.mv-rotate-gate__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--mv-text);
+  line-height: 1.3;
+}
+
+.mv-rotate-gate__hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--mv-muted);
 }
 
 .mv-header {
@@ -3529,7 +3695,7 @@ body.mv-studying .mv-bottom-nav {
 
     .study-type-input {
       min-height: 2.6rem;
-      font-size: 0.86rem;
+      font-size: 16px;
     }
   }
 }
@@ -3548,6 +3714,8 @@ body.mv-studying .mv-bottom-nav {
   display: flex;
   flex-direction: column;
   width: var(--dock-w);
+  contain: layout paint;
+  transform: translateZ(0);
   height: var(--dock-h);
   min-width: 9.5rem;
   min-height: 6.5rem;

@@ -9,13 +9,19 @@
 >
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="{% if ui_theme_resolved == 'light' %}#f3f6fa{% else %}#071018{% endif %}" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Mimivo" />
     <meta name="application-name" content="Mimivo" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="screen-orientation" content="portrait" />
+
     <title>{% block title %}Mimivo{% endblock %}</title>
     <link rel="manifest" href="{% url 'pwa_manifest' %}" />
     <link rel="apple-touch-icon" href="{% static 'pwa/icons/apple-touch-icon.png' %}" />
@@ -151,8 +157,32 @@
       </div>
     </div>
 
+    <div
+      id="mv-rotate-gate"
+      class="mv-rotate-gate"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mv-rotate-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="mv-rotate-gate__card"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <div class="mv-rotate-gate__icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2.4">
+            <rect x="18" y="8" width="28" height="48" rx="5" />
+            <path d="M12 28c-4 4-4 12 0 16" stroke-linecap="round" />
+            <path d="M52 28c4 4 4 12 0 16" stroke-linecap="round" />
+            <path d="M8 36h8M48 36h8" stroke-linecap="round" />
+          </svg>
+        </div>
+        <h2 id="mv-rotate-title" class="mv-rotate-gate__title">{{ ui.rotate_portrait_title }}</h2>
+        <p class="mv-rotate-gate__hint">{{ ui.rotate_portrait_hint }}</p>
+      </div>
+    </div>
+
     <script src="{% static 'js/confirm.js' %}"></script>
     <script src="{% static 'js/toasts.js' %}"></script>
+    <script src="{% static 'js/mobile-shell.js' %}"></script>
     <script src="{% static 'js/pwa-register.js' %}"></script>
     {% block extra_js %}{% endblock %}
   </body>

@@ -59,6 +59,7 @@ def asset_bundle_version() -> str:
         "css/theme.css",
         "js/pwa-register.js",
         "js/confirm.js",
+        "js/mobile-shell.js",
         "js/lesson_study.js",
         "pwa/sw.js",
         "pwa/offline.html",
