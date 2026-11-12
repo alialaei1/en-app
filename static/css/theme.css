@@ -3423,6 +3423,19 @@ body.mv-studying .mv-bottom-nav {
   to { transform: rotate(360deg); }
 }
 
+.study-speak-error {
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--mv-danger) 40%, var(--mv-border));
+  background: color-mix(in srgb, var(--mv-danger) 12%, transparent);
+  color: color-mix(in srgb, var(--mv-danger) 85%, #fff);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .study-speak-result {
   margin-top: 0.55rem;
   border: 1px solid var(--mv-border);

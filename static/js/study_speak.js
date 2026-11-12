@@ -22,6 +22,7 @@
       retryBtn: document.getElementById("study-speak-retry"),
       thresholdInput: document.getElementById("setting-speak-threshold"),
       thresholdLabel: document.getElementById("setting-speak-threshold-label"),
+      errorBox: document.getElementById("study-speak-error"),
     };
 
     let phaseTimer = 0;
@@ -69,6 +70,22 @@
       if (!document.querySelector(".mv-modal:not([hidden])")) {
         document.body.classList.remove("mv-modal-open");
       }
+    }
+
+    function showError(message) {
+      if (els.errorBox) {
+        els.errorBox.textContent = message || "";
+        els.errorBox.classList.remove("hidden");
+        els.errorBox.removeAttribute("hidden");
+      }
+      if (api.onError) api.onError(message);
+    }
+
+    function clearError() {
+      if (!els.errorBox) return;
+      els.errorBox.textContent = "";
+      els.errorBox.classList.add("hidden");
+      els.errorBox.setAttribute("hidden", "");
     }
 
     function hideResult() {
@@ -419,29 +436,71 @@
       });
     }
 
+    function formatSpeakError(payload, status) {
+      const main =
+        (payload && payload.error) ||
+        t("speak_transcribe_failed", "Could not convert voice to text.");
+      const detail = payload && payload.detail ? String(payload.detail).trim() : "";
+      const code = payload && payload.code ? String(payload.code) : "";
+      const parts = [main];
+      if (code) parts.push(`[${code}]`);
+      if (detail && detail !== main) parts.push(detail);
+      if (status && status >= 400) parts.push(`HTTP ${status}`);
+      return parts.join(" — ");
+    }
+
     async function transcribeBlob(blob, chunk) {
       const url = speakUrl(chunk);
-      if (!url || !blob) {
-        throw new Error(t("speak_transcribe_failed", "Could not convert voice to text."));
+      if (!url) {
+        throw new Error(
+          t("speak_err_no_url", "Speaking upload URL is missing. Reload the page.")
+        );
+      }
+      if (!blob) {
+        throw new Error(t("speak_no_audio", "No recording received."));
       }
       const mime = blob.type || "audio/webm";
       const filename = `speak.${extensionForMime(mime)}`;
       const formData = new FormData();
       formData.append("audio", blob, filename);
       formData.append("csrfmiddlewaretoken", api.csrf || "");
-      const response = await fetch(url, {
-        method: "POST",
-        body: formData,
-        headers: {
-          "X-Requested-With": "XMLHttpRequest",
-          "X-CSRFToken": api.csrf || "",
-        },
-        credentials: "same-origin",
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.ok || !payload.text) {
+      let response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          body: formData,
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": api.csrf || "",
+          },
+          credentials: "same-origin",
+        });
+      } catch (err) {
         throw new Error(
-          payload.error || t("speak_transcribe_failed", "Could not convert voice to text.")
+          t("speak_err_network", "Network error while uploading your recording.") +
+            (err && err.message ? ` — ${err.message}` : "")
+        );
+      }
+
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (_) {
+        throw new Error(
+          t("speak_err_http", "Server error while converting voice (HTTP {status}).", {
+            status: response.status || "?",
+          }) + ` — non-JSON response`
+        );
+      }
+
+      if (!response.ok || !payload.ok || !payload.text) {
+        if (payload.error || payload.detail || payload.code) {
+          throw new Error(formatSpeakError(payload, response.status));
+        }
+        throw new Error(
+          t("speak_err_http", "Server error while converting voice (HTTP {status}).", {
+            status: response.status || "?",
+          })
         );
       }
       return String(payload.text || "").trim();
@@ -462,7 +521,7 @@
       if (!blob) {
         closeOverlay();
         busy = false;
-        if (api.onError) api.onError(t("speak_no_audio", "No recording received."));
+        showError(t("speak_no_audio", "No recording received."));
         return;
       }
 
@@ -472,6 +531,7 @@
 
       try {
         const transcript = await transcribeBlob(blob, chunk);
+        clearError();
         alignments = alignWords((chunk && chunk.text) || "", transcript).map((item) => ({
           ...item,
           forcedOk: false,
@@ -482,9 +542,11 @@
         if (api.onComplete) api.onComplete(transcript, alignments);
       } catch (err) {
         closeOverlay();
-        if (api.onError) {
-          api.onError(err.message || t("speak_transcribe_failed", "Could not convert voice to text."));
-        }
+        showError(
+          err && err.message
+            ? err.message
+            : t("speak_transcribe_failed", "Could not convert voice to text.")
+        );
       } finally {
         busy = false;
       }
@@ -529,6 +591,7 @@
       if (!chunk) return;
       busy = true;
       hideResult();
+      clearError();
       clearPhaseTimer();
       revokeMineUrl();
       recordedBlob = null;
@@ -540,9 +603,10 @@
       } catch (err) {
         busy = false;
         stopTracks();
-        if (api.onError) {
-          api.onError(err.message || t("speak_no_mic", "Microphone permission is required for speaking practice."));
-        }
+        showError(
+          err.message ||
+            t("speak_no_mic", "Microphone permission is required for speaking practice.")
+        );
       }
     }
 
@@ -568,6 +632,7 @@
       stopTracks();
       closeOverlay();
       hideResult();
+      clearError();
       revokeMineUrl();
       recordedBlob = null;
       busy = false;

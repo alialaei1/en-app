@@ -1208,7 +1208,7 @@ def chunk_speak_transcribe(request, pk):
 
     from accounts.ui_i18n import request_app_lang, t
 
-    from .services.speak_transcribe import transcribe_learner_audio
+    from .services.speak_transcribe import SpeakTranscribeError, transcribe_learner_audio
 
     chunk = get_object_or_404(
         LessonChunk.objects.select_related("lesson__section__course"),
@@ -1219,14 +1219,19 @@ def chunk_speak_transcribe(request, pk):
     audio_file = request.FILES.get("audio")
     if not audio_file:
         return JsonResponse(
-            {"ok": False, "error": t(lang, "speak_no_audio")},
+            {
+                "ok": False,
+                "code": "no_audio",
+                "error": t(lang, "speak_no_audio"),
+                "detail": "request.FILES had no 'audio' field.",
+            },
             status=400,
         )
 
     suffix = Path(getattr(audio_file, "name", "") or "clip.webm").suffix.lower() or ".webm"
+    content_type = (getattr(audio_file, "content_type", "") or "").lower()
     if suffix not in {".webm", ".ogg", ".mp3", ".wav", ".m4a", ".mp4", ".aac", ".mpeg", ".caf"}:
         # Keep a usable extension so ffmpeg can sniff the container.
-        content_type = (getattr(audio_file, "content_type", "") or "").lower()
         if "mp4" in content_type or "aac" in content_type or "m4a" in content_type:
             suffix = ".m4a"
         elif "ogg" in content_type:
@@ -1237,24 +1242,58 @@ def chunk_speak_transcribe(request, pk):
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            size = 0
             for chunk_bytes in audio_file.chunks():
                 tmp.write(chunk_bytes)
+                size += len(chunk_bytes)
             tmp_path = Path(tmp.name)
+        if size < 64:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "code": "empty_upload",
+                    "error": t(lang, "speak_no_audio"),
+                    "detail": f"Uploaded audio was only {size} bytes ({suffix}, {content_type or 'no content-type'}).",
+                },
+                status=400,
+            )
         text = transcribe_learner_audio(tmp_path, language="en")
         if not text:
             return JsonResponse(
                 {
                     "ok": False,
+                    "code": "empty_transcript",
                     "error": t(lang, "speak_empty_transcript"),
+                    "detail": f"Whisper returned empty text for {suffix} upload ({size} bytes).",
                 },
                 status=400,
             )
         return JsonResponse({"ok": True, "text": text})
+    except SpeakTranscribeError as exc:
+        code_key = {
+            "ffmpeg_missing": "speak_err_ffmpeg",
+            "ffmpeg_decode": "speak_err_decode",
+            "whisper_import": "speak_err_whisper",
+            "whisper_model": "speak_err_whisper",
+            "whisper_run": "speak_err_whisper_run",
+            "empty_upload": "speak_no_audio",
+        }.get(exc.code, "speak_transcribe_failed")
+        return JsonResponse(
+            {
+                "ok": False,
+                "code": exc.code,
+                "error": t(lang, code_key),
+                "detail": exc.detail,
+            },
+            status=500 if exc.code not in {"empty_upload", "ffmpeg_decode"} else 400,
+        )
     except Exception as exc:  # noqa: BLE001 - surface to learner UI
         return JsonResponse(
             {
                 "ok": False,
-                "error": t(lang, "speak_transcribe_failed") + f" ({exc})",
+                "code": "unknown",
+                "error": t(lang, "speak_transcribe_failed"),
+                "detail": str(exc),
             },
             status=500,
         )
