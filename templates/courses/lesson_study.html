@@ -172,9 +172,47 @@
           </button>
         </div>
 
-        <div class="study-type-block">
+        <div
+          class="study-type-block"
+          id="study-type-block"
+          data-study-mode="writing"
+          data-label-writing="{{ ui.type_what_you_hear }}"
+          data-label-speaking="{{ ui.speak_what_you_hear }}"
+          data-placeholder-writing="{{ ui.type_placeholder }}"
+          data-placeholder-speaking="{{ ui.speak_placeholder }}"
+          data-hint-writing="{{ ui.type_hint }}"
+          data-hint-speaking="{{ ui.speak_hint }}"
+        >
+          <div class="study-mode-tabs" role="tablist" aria-label="{{ ui.study_answer_modes }}">
+            <button
+              type="button"
+              class="study-mode-tab is-active"
+              role="tab"
+              id="study-mode-writing"
+              data-study-mode-tab="writing"
+              aria-selected="true"
+              aria-controls="study-type-input"
+            >
+              {{ ui.study_mode_writing }}
+            </button>
+            <button
+              type="button"
+              class="study-mode-tab"
+              role="tab"
+              id="study-mode-speaking"
+              data-study-mode-tab="speaking"
+              aria-selected="false"
+              aria-controls="study-type-input"
+            >
+              {{ ui.study_mode_speaking }}
+            </button>
+          </div>
+
           <div class="study-type-head">
-            <label class="study-type-label" for="study-type-input">{{ ui.type_what_you_hear }}</label>
+            <label class="study-type-label" id="study-type-label" for="study-type-input">{{ ui.type_what_you_hear }}</label>
+          </div>
+
+          <div class="study-speech-row">
             <button
               type="button"
               id="study-speech-btn"
@@ -186,6 +224,7 @@
               <span id="study-speech-label">{{ ui.speech_start }}</span>
             </button>
           </div>
+
           <textarea
             id="study-type-input"
             rows="2"

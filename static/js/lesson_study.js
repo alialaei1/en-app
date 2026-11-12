@@ -40,13 +40,17 @@
   const progressBar = document.getElementById("study-progress-bar");
   const textEl = document.getElementById("study-card-text");
   const sentenceMeaningEl = document.getElementById("study-sentence-meaning");
+  const typeBlock = document.getElementById("study-type-block");
   const typeInput = document.getElementById("study-type-input");
+  const typeLabel = document.getElementById("study-type-label");
   const typeHint = document.getElementById("study-type-hint");
   const speechBtn = document.getElementById("study-speech-btn");
   const speechLabel = document.getElementById("study-speech-label");
+  const modeTabs = Array.from(document.querySelectorAll("[data-study-mode-tab]"));
   const SpeechRecognitionCtor =
     window.SpeechRecognition || window.webkitSpeechRecognition || null;
   const speechLang = root.dataset.speechLang || "en-US";
+  let studyAnswerMode = "writing";
   let speechRecognition = null;
   let speechWanted = false;
   let speechUpdating = false;
@@ -1187,6 +1191,75 @@
     }
   }
 
+  function studyModeCopy(mode, kind) {
+    const fromDom = typeBlock && typeBlock.dataset
+      ? typeBlock.dataset[
+          kind === "label"
+            ? mode === "speaking"
+              ? "labelSpeaking"
+              : "labelWriting"
+            : kind === "placeholder"
+              ? mode === "speaking"
+                ? "placeholderSpeaking"
+                : "placeholderWriting"
+              : mode === "speaking"
+                ? "hintSpeaking"
+                : "hintWriting"
+        ]
+      : "";
+    if (fromDom) return fromDom;
+    if (kind === "label") {
+      return mode === "speaking"
+        ? t("speak_what_you_hear", "Speak what you hear / read")
+        : t("type_what_you_hear", "Type what you hear / read");
+    }
+    if (kind === "placeholder") {
+      return mode === "speaking"
+        ? t("speak_placeholder", "Tap Speak and say the card text…")
+        : t("type_placeholder", "Start typing the card text…");
+    }
+    return mode === "speaking"
+      ? t("speak_hint", "Spoken words turn green. Minor mistakes are OK. Highlights unlock as you go.")
+      : t(
+          "type_hint",
+          "Matching words turn green. Minor typos are OK. Highlights unlock when you reach them."
+        );
+  }
+
+  function syncStudyAnswerModeUi() {
+    if (typeBlock) typeBlock.dataset.studyMode = studyAnswerMode;
+    modeTabs.forEach((tab) => {
+      const active = tab.getAttribute("data-study-mode-tab") === studyAnswerMode;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if (typeLabel) typeLabel.textContent = studyModeCopy(studyAnswerMode, "label");
+    if (typeInput) typeInput.placeholder = studyModeCopy(studyAnswerMode, "placeholder");
+    if (typeHint && !speechWanted) {
+      typeHint.textContent = studyModeCopy(studyAnswerMode, "hint");
+    }
+    if (speechBtn) {
+      speechBtn.hidden = studyAnswerMode !== "speaking";
+      speechBtn.tabIndex = studyAnswerMode === "speaking" ? 0 : -1;
+    }
+  }
+
+  function setStudyAnswerMode(mode) {
+    const next = mode === "speaking" ? "speaking" : "writing";
+    if (next === studyAnswerMode) {
+      syncStudyAnswerModeUi();
+      return;
+    }
+    if (studyAnswerMode === "speaking" && next === "writing") {
+      stopSpeechRecognition({ keepHint: true });
+    }
+    studyAnswerMode = next;
+    syncStudyAnswerModeUi();
+    if (studyAnswerMode === "writing" && typeInput) {
+      window.setTimeout(() => typeInput.focus(), 20);
+    }
+  }
+
   function setSpeechUi(listening) {
     if (!speechBtn) return;
     speechBtn.classList.toggle("is-listening", listening);
@@ -1300,10 +1373,7 @@
     }
     setSpeechUi(false);
     if (!keepHint && typeHint && !cardCompleted) {
-      typeHint.textContent = t(
-        "type_hint",
-        "Matching words turn green. Minor typos are OK. Highlights unlock when you reach them."
-      );
+      typeHint.textContent = studyModeCopy(studyAnswerMode, "hint");
     }
   }
 
@@ -1509,10 +1579,7 @@
     speechSessionPrefix = "";
     if (typeInput) typeInput.value = "";
     if (typeHint) {
-      typeHint.textContent = t(
-        "type_hint",
-        "Matching words turn green. Minor typos are OK. Highlights unlock when you reach them."
-      );
+      typeHint.textContent = studyModeCopy(studyAnswerMode, "hint");
     }
     hideSentenceMeaningToast({
       resetText: true,
@@ -2239,6 +2306,14 @@
     });
   }
 
+  modeTabs.forEach((tab) => {
+    tab.addEventListener("click", (event) => {
+      event.preventDefault();
+      setStudyAnswerMode(tab.getAttribute("data-study-mode-tab") || "writing");
+    });
+  });
+  syncStudyAnswerModeUi();
+
   if (speechBtn) {
     if (!SpeechRecognitionCtor) {
       speechBtn.disabled = true;
@@ -2249,6 +2324,9 @@
     }
     speechBtn.addEventListener("click", (event) => {
       event.preventDefault();
+      if (studyAnswerMode !== "speaking") {
+        setStudyAnswerMode("speaking");
+      }
       toggleSpeechRecognition();
     });
   }
