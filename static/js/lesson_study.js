@@ -67,6 +67,7 @@
   const stopBtn = document.getElementById("study-stop");
   const meaningBtn = document.getElementById("study-toggle-meaning");
   const revealAllBtn = document.getElementById("study-reveal-all");
+  const repeatCardBtn = document.getElementById("study-repeat-card");
   const settingsModal = document.getElementById("study-settings-modal");
   let mediaSessionState = "stopped";
   const levelsEl = document.getElementById("study-levels");
@@ -1429,6 +1430,23 @@
     meaningBtn.innerHTML = studyToolIcon(meaningOpen && hasMeaning ? "meaning-off" : "meaning-on");
   }
 
+  function updateRepeatCardBtnUI() {
+    if (!repeatCardBtn) return;
+    const hasMedia = Boolean(chunkMediaUrl(currentChunk()));
+    const label = t("repeat_card", "Repeat card");
+    repeatCardBtn.disabled = !hasMedia;
+    repeatCardBtn.title = label;
+    repeatCardBtn.setAttribute("aria-label", label);
+  }
+
+  async function repeatCurrentCard() {
+    const chunk = currentChunk();
+    if (!chunkMediaUrl(chunk)) return;
+    // Force restart from the beginning (not resume-from-pause).
+    stopAudio();
+    await playFullCard({ startTimer: false });
+  }
+
   function areAllHighlightsRevealed() {
     const chunk = currentChunk();
     const highlights = (chunk && chunk.highlights) || [];
@@ -1888,6 +1906,7 @@
     mediaSessionState = "stopped";
     updateMeaningBtnUI();
     updateRevealAllBtnUI();
+    updateRepeatCardBtnUI();
     if (prevBtn) prevBtn.disabled = index <= 0;
     if (nextBtn) {
       nextBtn.disabled = false;
@@ -2090,6 +2109,12 @@
     revealAllBtn.addEventListener("click", () => toggleRevealAllHiddenWords());
   }
 
+  if (repeatCardBtn) {
+    repeatCardBtn.addEventListener("click", () => {
+      repeatCurrentCard();
+    });
+  }
+
   document.querySelectorAll("[data-study-settings-open]").forEach((btn) => {
     btn.addEventListener("click", (event) => {
       event.preventDefault();
@@ -2116,6 +2141,7 @@
   applyAudioRate();
   updateMeaningBtnUI();
   updateRevealAllBtnUI();
+  updateRepeatCardBtnUI();
 
   if (typeInput) {
     const onType = () => {
