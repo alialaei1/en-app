@@ -295,9 +295,108 @@
 
   function applyAudioRate() {
     const rate = getPlaybackRate();
-    if (audio) audio.playbackRate = rate;
-    if (video) video.playbackRate = rate;
+    if (audio) {
+      try {
+        audio.playbackRate = rate;
+      } catch (_) {}
+    }
+    if (video) {
+      try {
+        video.playbackRate = rate;
+      } catch (_) {}
+    }
   }
+
+  let mediaGestureUnlocked = false;
+
+  function hardenStudyMediaEl(el) {
+    if (!el) return;
+    try {
+      el.playsInline = true;
+    } catch (_) {}
+    el.setAttribute("playsinline", "");
+    el.setAttribute("webkit-playsinline", "");
+    el.setAttribute("preload", el.getAttribute("preload") || "metadata");
+    el.setAttribute("controlslist", "nodownload noplaybackrate noremoteplayback");
+    try {
+      el.disableRemotePlayback = true;
+    } catch (_) {}
+    if (el.tagName === "VIDEO") {
+      try {
+        el.disablePictureInPicture = true;
+      } catch (_) {}
+    }
+  }
+
+  function waitForMediaEvent(el, eventName, timeoutMs) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        el.removeEventListener(eventName, onEvent);
+        resolve();
+      };
+      const onEvent = () => finish();
+      el.addEventListener(eventName, onEvent);
+      window.setTimeout(finish, timeoutMs || 2500);
+    });
+  }
+
+  async function ensureMediaMetadata(el) {
+    if (!el) return false;
+    if (el.readyState >= 1) return true;
+    try {
+      el.load();
+    } catch (_) {}
+    await waitForMediaEvent(el, "loadedmetadata", 3500);
+    return el.readyState >= 1;
+  }
+
+  async function safeSeekMedia(el, timeSec) {
+    if (!el) return;
+    const target = Math.max(0, Number(timeSec) || 0);
+    if (!Number.isFinite(target)) return;
+    await ensureMediaMetadata(el);
+    const current = Number(el.currentTime) || 0;
+    if (Math.abs(current - target) < 0.04) return;
+    try {
+      if (typeof el.fastSeek === "function") el.fastSeek(target);
+      else el.currentTime = target;
+    } catch (_) {
+      try {
+        el.currentTime = target;
+      } catch (_) {}
+    }
+    await waitForMediaEvent(el, "seeked", 1800);
+  }
+
+  async function safePlayMedia(el) {
+    if (!el) return false;
+    applyAudioRate();
+    try {
+      const playPromise = el.play();
+      if (playPromise && typeof playPromise.then === "function") await playPromise;
+      mediaGestureUnlocked = true;
+      return true;
+    } catch (_) {
+      try {
+        if (el.readyState < 2) {
+          await waitForMediaEvent(el, "canplay", 3500);
+        }
+        applyAudioRate();
+        const retry = el.play();
+        if (retry && typeof retry.then === "function") await retry;
+        mediaGestureUnlocked = true;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
+  hardenStudyMediaEl(audio);
+  hardenStudyMediaEl(video);
 
   function defaultDockSize() {
     const vw = window.innerWidth || 360;
@@ -1397,12 +1496,11 @@
     }
   }
 
-  function resumeMedia({ startTimer = true } = {}) {
+  async function resumeMedia({ startTimer = true } = {}) {
     const chunk = currentChunk();
     const media = ensureCardMedia(chunk);
     if (!media) return;
     if (startTimer) ensureCardTimerStarted();
-    applyAudioRate();
     if (!endedListener) {
       endedListener = () => {
         endedListener = null;
@@ -1410,17 +1508,15 @@
       };
       media.addEventListener("ended", endedListener);
     }
-    const playPromise = media.play();
     setPlayingUI("playing");
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        setPlayingUI("paused");
-        if (levelStatus) {
-          levelStatus.textContent = chunkIsVideo(chunk)
-            ? t("could_not_play_video", "Could not play video.")
-            : t("could_not_play_audio", "Could not play audio.");
-        }
-      });
+    const ok = await safePlayMedia(media);
+    if (!ok) {
+      setPlayingUI("paused");
+      if (levelStatus) {
+        levelStatus.textContent = chunkIsVideo(chunk)
+          ? t("could_not_play_video", "Could not play video.")
+          : t("could_not_play_audio", "Could not play audio.");
+      }
     }
   }
 
@@ -1433,11 +1529,14 @@
       if (!el) return;
       if (stopListener) el.removeEventListener("timeupdate", stopListener);
       if (endedListener) el.removeEventListener("ended", endedListener);
-      el.pause();
       try {
-        el.currentTime = 0;
-      } catch (_) {
-        /* ignore */
+        el.pause();
+      } catch (_) {}
+      // Avoid forced seek-to-0 when metadata is missing (common iOS race).
+      if (el.readyState >= 1) {
+        try {
+          el.currentTime = 0;
+        } catch (_) {}
       }
     });
     stopListener = null;
@@ -1449,8 +1548,12 @@
     const url = chunkMediaUrl(chunk);
     const el = activeMediaEl(chunk);
     if (!el || !url) return null;
+    hardenStudyMediaEl(el);
     if (el.getAttribute("src") !== url) {
       el.src = url;
+      try {
+        el.load();
+      } catch (_) {}
     }
     if (chunkIsVideo(chunk)) {
       setVideoDockVisible(true);
@@ -1458,20 +1561,21 @@
         audio.removeAttribute("src");
         try {
           audio.load();
-        } catch (_) {
-          /* ignore */
-        }
+        } catch (_) {}
       }
     } else {
       setVideoDockVisible(false);
+      if (video && video.getAttribute("src")) {
+        video.pause();
+      }
     }
     return el;
   }
 
-  function playFullCard({ startTimer = true } = {}) {
+  async function playFullCard({ startTimer = true } = {}) {
     const chunk = currentChunk();
     if (mediaSessionState === "paused") {
-      resumeMedia({ startTimer });
+      await resumeMedia({ startTimer });
       return;
     }
     const media = ensureCardMedia(chunk);
@@ -1479,27 +1583,26 @@
     if (startTimer) ensureCardTimerStarted();
     stopAudio();
     ensureCardMedia(chunk);
-    applyAudioRate();
+    await ensureMediaMetadata(media);
+    await safeSeekMedia(media, 0);
     endedListener = () => {
       endedListener = null;
       setPlayingUI("stopped");
     };
     media.addEventListener("ended", endedListener);
-    const playPromise = media.play();
     setPlayingUI("playing");
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        stopAudio();
-        if (levelStatus) {
-          levelStatus.textContent = chunkIsVideo(chunk)
-            ? t("could_not_play_video", "Could not play video.")
-            : t("could_not_play_audio", "Could not play audio.");
-        }
-      });
+    const ok = await safePlayMedia(media);
+    if (!ok) {
+      stopAudio();
+      if (levelStatus) {
+        levelStatus.textContent = chunkIsVideo(chunk)
+          ? t("could_not_play_video", "Could not play video.")
+          : t("could_not_play_audio", "Could not play audio.");
+      }
     }
   }
 
-  function playHighlightClip(highlight) {
+  async function playHighlightClip(highlight) {
     const chunk = currentChunk();
     const media = ensureCardMedia(chunk);
     if (!highlight || !media) {
@@ -1517,42 +1620,23 @@
 
     stopAudio();
     ensureCardMedia(chunk);
-    applyAudioRate();
     const playFrom = Math.max(0, start);
     const finishAt = end;
-    const seekAndPlay = () => {
-      try {
-        media.currentTime = playFrom;
-      } catch (_) {
-        /* ignore */
-      }
-      stopListener = () => {
-        if (media.currentTime >= finishAt) stopAudio();
-      };
-      media.addEventListener("timeupdate", stopListener);
-      const durationMs = Math.max(
-        50,
-        ((finishAt - playFrom) * 1000) / getPlaybackRate() + 40
-      );
-      stopTimer = window.setTimeout(stopAudio, durationMs);
-      const playPromise = media.play();
-      setPlayingUI("playing");
-      if (playPromise && typeof playPromise.catch === "function") {
-        playPromise.catch(() => {
-          stopAudio();
-          if (levelStatus) levelStatus.textContent = t("could_not_play_hl", "Could not play highlight audio.");
-        });
-      }
+    await safeSeekMedia(media, playFrom);
+    stopListener = () => {
+      if (media.currentTime >= finishAt) stopAudio();
     };
-
-    if (media.readyState >= 1) seekAndPlay();
-    else {
-      const onReady = () => {
-        media.removeEventListener("loadedmetadata", onReady);
-        seekAndPlay();
-      };
-      media.addEventListener("loadedmetadata", onReady);
-      media.load();
+    media.addEventListener("timeupdate", stopListener);
+    const durationMs = Math.max(
+      50,
+      ((finishAt - playFrom) * 1000) / getPlaybackRate() + 40
+    );
+    stopTimer = window.setTimeout(stopAudio, durationMs);
+    setPlayingUI("playing");
+    const ok = await safePlayMedia(media);
+    if (!ok) {
+      stopAudio();
+      if (levelStatus) levelStatus.textContent = t("could_not_play_hl", "Could not play highlight audio.");
     }
   }
 
@@ -1850,7 +1934,8 @@
       window.setTimeout(() => typeInput.focus(), 30);
     }
 
-    if (studySettings.autoplay && mediaUrl) {
+    // iOS blocks autoplay until a user gesture has unlocked media playback.
+    if (studySettings.autoplay && mediaUrl && mediaGestureUnlocked) {
       window.setTimeout(() => playFullCard({ startTimer: false }), 40);
     }
   }

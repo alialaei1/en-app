@@ -93,7 +93,13 @@
       </div>
 
       <section class="study-card-panel">
-        <audio id="study-audio" preload="metadata" class="hidden"></audio>
+        <audio
+          id="study-audio"
+          preload="metadata"
+          playsinline
+          webkit-playsinline
+          class="hidden"
+        ></audio>
 
         <div class="study-timer-row">
           <div>
@@ -263,7 +269,11 @@
           id="study-video"
           class="study-video-dock__player"
           playsinline
+          webkit-playsinline
           preload="metadata"
+          x-webkit-airplay="deny"
+          disablepictureinpicture
+          controlslist="nodownload noplaybackrate noremoteplayback"
         ></video>
       </div>
       <div class="study-video-dock__resize" data-dock-resize title="{{ ui.resize_video }}"></div>

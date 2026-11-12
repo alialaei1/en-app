@@ -32,8 +32,16 @@
 
   function hardenAudio(audio) {
     audio.controls = false;
+    audio.setAttribute("playsinline", "");
+    audio.setAttribute("webkit-playsinline", "");
+    try {
+      audio.playsInline = true;
+    } catch (_) {}
     audio.setAttribute("controlsList", "nodownload noplaybackrate noremoteplayback");
     audio.setAttribute("disablePictureInPicture", "true");
+    try {
+      audio.disableRemotePlayback = true;
+    } catch (_) {}
     audio.addEventListener("contextmenu", function (event) {
       event.preventDefault();
     });
@@ -44,7 +52,20 @@
     let target = Math.max(0, Number(time) || 0);
     if (duration > 0) target = Math.min(duration, target);
 
+    const finish = function () {
+      if (typeof onDone === "function") onDone(target);
+    };
+
     const apply = function () {
+      let settled = false;
+      const done = function () {
+        if (settled) return;
+        settled = true;
+        audio.removeEventListener("seeked", done);
+        finish();
+      };
+      audio.addEventListener("seeked", done);
+      window.setTimeout(done, 1200);
       try {
         if (typeof audio.fastSeek === "function") {
           audio.fastSeek(target);
@@ -55,10 +76,9 @@
         try {
           audio.currentTime = target;
         } catch (__) {
-          /* ignore transient seek errors */
+          done();
         }
       }
-      if (typeof onDone === "function") onDone(target);
     };
 
     if (audio.readyState >= 1) {
