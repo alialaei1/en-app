@@ -1135,12 +1135,16 @@ def lesson_study(request, pk):
     record_url_template = reverse("chunk_study_record", kwargs={"pk": 999999999}).replace(
         "999999999", "{id}"
     )
+    speak_url_template = reverse("chunk_speak_transcribe", kwargs={"pk": 999999999}).replace(
+        "999999999", "{id}"
+    )
     payload = study_lesson_payload(
         lesson,
         user=request.user,
         exit_url=reverse("course_detail", kwargs={"pk": course.pk}),
         level_url_template=level_url_template,
         record_url_template=record_url_template,
+        speak_url_template=speak_url_template,
         settings_url=reverse("lesson_study_settings", kwargs={"pk": lesson.pk}),
     )
     return render(
@@ -1170,6 +1174,8 @@ def lesson_study_settings(request, pk):
         updates["playback_rate"] = request.POST.get("playback_rate")
     if "autoplay" in request.POST:
         updates["autoplay"] = request.POST.get("autoplay")
+    if "speaking_score_threshold" in request.POST:
+        updates["speaking_score_threshold"] = request.POST.get("speaking_score_threshold")
     if "video_dock" in request.POST:
         updates["video_dock"] = request.POST.get("video_dock")
     try:
@@ -1191,6 +1197,73 @@ def lesson_study_settings(request, pk):
         return JsonResponse({"ok": True, "settings": settings_data})
     messages.success(request, t(request_app_lang(request), "study_settings_saved"))
     return redirect("lesson_study", pk=lesson.pk)
+
+
+@login_required
+@require_POST
+def chunk_speak_transcribe(request, pk):
+    """Accept a short learner recording and return a transcript for speaking practice."""
+    import tempfile
+    from pathlib import Path
+
+    from accounts.ui_i18n import request_app_lang, t
+
+    from .services.speak_transcribe import transcribe_learner_audio
+
+    chunk = get_object_or_404(
+        LessonChunk.objects.select_related("lesson__section__course"),
+        pk=pk,
+    )
+    require_course_study(request.user, chunk.lesson.section.course)
+    lang = request_app_lang(request)
+    audio_file = request.FILES.get("audio")
+    if not audio_file:
+        return JsonResponse(
+            {"ok": False, "error": t(lang, "speak_no_audio")},
+            status=400,
+        )
+
+    suffix = Path(getattr(audio_file, "name", "") or "clip.webm").suffix.lower() or ".webm"
+    if suffix not in {".webm", ".ogg", ".mp3", ".wav", ".m4a", ".mp4", ".aac", ".mpeg", ".caf"}:
+        # Keep a usable extension so ffmpeg can sniff the container.
+        content_type = (getattr(audio_file, "content_type", "") or "").lower()
+        if "mp4" in content_type or "aac" in content_type or "m4a" in content_type:
+            suffix = ".m4a"
+        elif "ogg" in content_type:
+            suffix = ".ogg"
+        else:
+            suffix = ".webm"
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            for chunk_bytes in audio_file.chunks():
+                tmp.write(chunk_bytes)
+            tmp_path = Path(tmp.name)
+        text = transcribe_learner_audio(tmp_path, language="en")
+        if not text:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": t(lang, "speak_empty_transcript"),
+                },
+                status=400,
+            )
+        return JsonResponse({"ok": True, "text": text})
+    except Exception as exc:  # noqa: BLE001 - surface to learner UI
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": t(lang, "speak_transcribe_failed") + f" ({exc})",
+            },
+            status=500,
+        )
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 @login_required

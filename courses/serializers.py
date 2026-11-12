@@ -51,6 +51,7 @@ def study_lesson_payload(
     exit_url: str = "",
     level_url_template: str = "",
     record_url_template: str = "",
+    speak_url_template: str = "",
     settings_url: str = "",
 ) -> dict:
     from .models import (
@@ -110,6 +111,7 @@ def study_lesson_payload(
         "exit_url": exit_url,
         "level_url_template": level_url_template,
         "record_url_template": record_url_template,
+        "speak_url_template": speak_url_template,
         "settings_url": settings_url,
         "settings": settings_data,
         "total_cards": len(chunks),

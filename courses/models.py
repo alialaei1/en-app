@@ -264,6 +264,7 @@ class Lesson(OrderedModel):
     DEFAULT_STUDY_SETTINGS = {
         "playback_rate": 1.0,
         "autoplay": False,
+        "speaking_score_threshold": 90,
     }
 
     class Meta(OrderedModel.Meta):
@@ -378,6 +379,11 @@ def normalize_study_settings(raw=None) -> dict:
         rate = 1.0
     data["playback_rate"] = max(0.5, min(2.0, round(rate, 2)))
     data["autoplay"] = bool(data.get("autoplay", False))
+    try:
+        threshold = float(data.get("speaking_score_threshold", 90))
+    except (TypeError, ValueError):
+        threshold = 90.0
+    data["speaking_score_threshold"] = max(50.0, min(100.0, round(threshold, 1)))
     dock = normalize_video_dock(data.get("video_dock"))
     if dock is None:
         data.pop("video_dock", None)
@@ -407,6 +413,12 @@ def apply_study_settings_updates(current: dict, **updates) -> dict:
             }
         else:
             current["autoplay"] = bool(value)
+    if "speaking_score_threshold" in updates and updates["speaking_score_threshold"] is not None:
+        try:
+            threshold = float(updates["speaking_score_threshold"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("speaking_score_threshold must be a number") from exc
+        current["speaking_score_threshold"] = max(50.0, min(100.0, round(threshold, 1)))
     if "video_dock" in updates and updates["video_dock"] is not None:
         raw = updates["video_dock"]
         if isinstance(raw, str):

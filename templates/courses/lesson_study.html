@@ -217,28 +217,61 @@
               type="button"
               id="study-speech-btn"
               class="study-speech-btn"
-              aria-pressed="false"
-              title="{{ ui.speech_start }}"
+              title="{{ ui.speak_start_recording }}"
             >
               <span id="study-speech-icon" aria-hidden="true" class="study-speech-dot"></span>
-              <span id="study-speech-label">{{ ui.speech_start }}</span>
+              <span id="study-speech-label">{{ ui.speak_start_recording }}</span>
             </button>
           </div>
 
-          <textarea
-            id="study-type-input"
-            rows="2"
-            dir="ltr"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="{{ ui.type_placeholder }}"
-            class="study-type-input"
-          ></textarea>
-          <p id="study-type-hint" class="study-type-hint">
-            {{ ui.type_hint }}
-          </p>
+          <div class="study-writing-pane">
+            <textarea
+              id="study-type-input"
+              rows="2"
+              dir="ltr"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="{{ ui.type_placeholder }}"
+              class="study-type-input"
+            ></textarea>
+            <p id="study-type-hint" class="study-type-hint">
+              {{ ui.type_hint }}
+            </p>
+          </div>
+
+          <div id="study-speak-result" class="study-speak-result hidden" hidden>
+            <div class="study-speak-result__head">
+              <p class="study-speak-result__title">{{ ui.speak_result_title }}</p>
+              <p id="study-speak-score" class="study-speak-result__score"></p>
+            </div>
+            <div id="study-speak-feedback" class="study-speak-feedback" dir="ltr"></div>
+            <p id="study-speak-word-detail" class="study-speak-word-detail hidden" hidden></p>
+            <div class="study-speak-result__actions">
+              <button type="button" id="study-speak-play-mine" class="study-speak-action-btn">
+                {{ ui.speak_play_mine }}
+              </button>
+              <button type="button" id="study-speak-play-model" class="study-speak-action-btn">
+                {{ ui.speak_play_model }}
+              </button>
+              <button type="button" id="study-speak-play-slow" class="study-speak-action-btn">
+                {{ ui.speak_play_slow }}
+              </button>
+              <button type="button" id="study-speak-mark-right" class="study-speak-action-btn" disabled>
+                {{ ui.speak_i_was_right }}
+              </button>
+            </div>
+            <div id="study-speak-shadow" class="study-speak-shadow hidden" hidden>
+              <p class="study-speak-shadow__text">{{ ui.speak_shadow_hint }}</p>
+              <button type="button" id="study-speak-shadow-btn" class="study-speech-btn">
+                {{ ui.speak_shadow_again }}
+              </button>
+            </div>
+            <button type="button" id="study-speak-retry" class="study-speech-btn study-speak-retry">
+              {{ ui.speak_try_again }}
+            </button>
+          </div>
         </div>
 
         <div class="study-level-block">
@@ -334,6 +367,41 @@
     </div>
 
     <div
+      id="study-speak-overlay"
+      class="study-speak-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="study-speak-overlay-title"
+      hidden
+    >
+      <div class="study-speak-overlay__backdrop"></div>
+      <div class="study-speak-overlay__panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <p id="study-speak-overlay-title" class="study-speak-overlay__sr">{{ ui.speak_session }}</p>
+        <div class="study-speak-phase is-active" data-speak-phase="countdown">
+          <p class="study-speak-countdown" id="study-speak-countdown">3</p>
+          <p class="study-speak-phase-hint">{{ ui.speak_get_ready }}</p>
+        </div>
+        <div class="study-speak-phase" data-speak-phase="go">
+          <p class="study-speak-go">{{ ui.speak_go }}</p>
+        </div>
+        <div class="study-speak-phase" data-speak-phase="recording">
+          <div class="study-speak-ring" aria-hidden="true">
+            <span class="study-speak-ring__pulse"></span>
+            <span class="study-speak-ring__core"></span>
+          </div>
+          <p class="study-speak-phase-hint">{{ ui.speak_recording_hint }}</p>
+          <button type="button" id="study-speak-end" class="study-speak-end-btn">
+            {{ ui.speak_end }}
+          </button>
+        </div>
+        <div class="study-speak-phase" data-speak-phase="loading">
+          <div class="study-speak-spinner" aria-hidden="true"></div>
+          <p class="study-speak-phase-hint">{{ ui.speak_transcribing }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div
       id="study-settings-modal"
       class="mv-modal study-settings-modal hidden"
       role="dialog"
@@ -381,6 +449,23 @@
             />
           </label>
 
+          <label class="study-setup-setting-card">
+            <span class="study-setup-stat-label">{{ ui.speaking_score_threshold }}</span>
+            <span class="study-setup-autoplay-help">{{ ui.speaking_score_threshold_help }}</span>
+            <div class="study-setup-speed-row">
+              <input
+                id="setting-speak-threshold"
+                type="range"
+                min="50"
+                max="100"
+                step="1"
+                value="90"
+                class="w-full accent-emerald-500"
+              />
+              <span id="setting-speak-threshold-label" class="study-setup-speed-label">90%</span>
+            </div>
+          </label>
+
           <div class="study-setup-settings-actions">
             <button type="button" id="settings-save" class="study-setup-mini-btn is-save">
               {{ ui.save_settings }}
@@ -394,5 +479,6 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="{% static 'js/study_speak.js' %}"></script>
   <script src="{% static 'js/lesson_study.js' %}"></script>
 {% endblock %}

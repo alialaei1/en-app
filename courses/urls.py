@@ -82,6 +82,11 @@ urlpatterns = [
         name="chunk_study_record",
     ),
     path(
+        "chunks/<int:pk>/speak-transcribe/",
+        views.chunk_speak_transcribe,
+        name="chunk_speak_transcribe",
+    ),
+    path(
         "lessons/<int:lesson_pk>/chunks/bulk-delete/",
         views.chunk_bulk_delete,
         name="chunk_bulk_delete",

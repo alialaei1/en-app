@@ -123,8 +123,10 @@
   let studySettings = {
     playback_rate: 1,
     autoplay: false,
+    speaking_score_threshold: 90,
     ...(lesson.settings && typeof lesson.settings === "object" ? lesson.settings : {}),
   };
+  let studySpeakApi = null;
   // Selected filters: "unrated" + "1".."7"
   const selectedKeys = new Set();
 
@@ -682,15 +684,29 @@
     });
   }
 
+  const settingSpeakThreshold = document.getElementById("setting-speak-threshold");
+  const settingSpeakThresholdLabel = document.getElementById("setting-speak-threshold-label");
+
+  function getSpeakThreshold() {
+    const value = Number(studySettings.speaking_score_threshold);
+    return Number.isFinite(value) ? Math.max(50, Math.min(100, value)) : 90;
+  }
+
   function syncSettingsForm() {
     const rate = getPlaybackRate();
     studySettings.playback_rate = rate;
     studySettings.autoplay = Boolean(studySettings.autoplay);
+    studySettings.speaking_score_threshold = getSpeakThreshold();
     if (settingPlaybackRate) settingPlaybackRate.value = String(rate);
     if (settingPlaybackRateLabel) {
       settingPlaybackRateLabel.textContent = `${rate.toFixed(2)}×`;
     }
     if (settingAutoplay) settingAutoplay.checked = Boolean(studySettings.autoplay);
+    if (settingSpeakThreshold) settingSpeakThreshold.value = String(getSpeakThreshold());
+    if (settingSpeakThresholdLabel) {
+      settingSpeakThresholdLabel.textContent = `${Math.round(getSpeakThreshold())}%`;
+    }
+    if (studySpeakApi && studySpeakApi.syncThresholdUi) studySpeakApi.syncThresholdUi();
   }
 
   async function saveStudySettings() {
@@ -701,6 +717,7 @@
     const formData = new FormData();
     formData.append("playback_rate", String(getPlaybackRate()));
     formData.append("autoplay", studySettings.autoplay ? "1" : "0");
+    formData.append("speaking_score_threshold", String(getSpeakThreshold()));
     formData.append("csrfmiddlewaretoken", csrf);
     if (settingsStatus) settingsStatus.textContent = t("saving", "Saving…");
     try {
@@ -1241,6 +1258,9 @@
     if (speechBtn) {
       speechBtn.hidden = studyAnswerMode !== "speaking";
       speechBtn.tabIndex = studyAnswerMode === "speaking" ? 0 : -1;
+      const startLabel = t("speak_start_recording", "Start");
+      speechBtn.title = startLabel;
+      if (speechLabel) speechLabel.textContent = startLabel;
     }
   }
 
@@ -1252,12 +1272,21 @@
     }
     if (studyAnswerMode === "speaking" && next === "writing") {
       stopSpeechRecognition({ keepHint: true });
+      if (studySpeakApi) studySpeakApi.reset();
     }
     studyAnswerMode = next;
     syncStudyAnswerModeUi();
     if (studyAnswerMode === "writing" && typeInput) {
       window.setTimeout(() => typeInput.focus(), 20);
     }
+  }
+
+  function revealAllHighlightsForSpeakReview() {
+    const chunk = currentChunk();
+    ((chunk && chunk.highlights) || []).forEach((item) => {
+      revealedHighlightIds.add(Number(item.id));
+    });
+    renderCardText();
   }
 
   function setSpeechUi(listening) {
@@ -1569,6 +1598,7 @@
   function resetCardProgressState(chunk) {
     meaningOpen = false;
     stopSpeechRecognition({ keepHint: true });
+    if (studySpeakApi) studySpeakApi.reset();
     revealedHighlightIds = new Set();
     typedMatchedEnd = -1;
     typedMatchedHighlightIds = new Set();
@@ -2314,20 +2344,70 @@
   });
   syncStudyAnswerModeUi();
 
-  if (speechBtn) {
-    if (!SpeechRecognitionCtor) {
-      speechBtn.disabled = true;
-      speechBtn.title = t(
-        "speech_unsupported",
-        "Speech-to-text needs Chrome or Edge (with microphone permission)."
-      );
-    }
-    speechBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      if (studyAnswerMode !== "speaking") {
-        setStudyAnswerMode("speaking");
+  if (settingSpeakThreshold) {
+    settingSpeakThreshold.addEventListener("input", () => {
+      const value = Number(settingSpeakThreshold.value);
+      studySettings.speaking_score_threshold = Number.isFinite(value) ? value : 90;
+      if (settingSpeakThresholdLabel) {
+        settingSpeakThresholdLabel.textContent = `${Math.round(getSpeakThreshold())}%`;
       }
-      toggleSpeechRecognition();
+    });
+  }
+
+  if (typeof window.MimivoStudySpeak === "function") {
+    studySpeakApi = window.MimivoStudySpeak({
+      t,
+      csrf,
+      speakUrlTemplate: lesson.speak_url_template || "",
+      getChunk: () => currentChunk(),
+      getSettings: () => studySettings,
+      setThreshold: (value) => {
+        studySettings.speaking_score_threshold = Number(value) || 90;
+      },
+      onError: (message) => {
+        if (typeHint) typeHint.textContent = message;
+        if (levelStatus) levelStatus.textContent = message;
+      },
+      onComplete: () => {
+        revealAllHighlightsForSpeakReview();
+        ensureCardTimerStarted();
+      },
+      onReviewReady: () => {
+        revealAllHighlightsForSpeakReview();
+      },
+      onReviewClear: () => {},
+      playModel: async ({ slow } = {}) => {
+        const chunk = currentChunk();
+        const media = ensureCardMedia(chunk);
+        if (!media) return;
+        stopAudio();
+        ensureCardMedia(chunk);
+        const rate = slow ? 0.75 : getPlaybackRate();
+        try {
+          media.playbackRate = rate;
+        } catch (_) {}
+        endedListener = () => {
+          endedListener = null;
+          setPlayingUI("stopped");
+          applyAudioRate();
+        };
+        media.addEventListener("ended", endedListener);
+        setPlayingUI("playing");
+        try {
+          await media.play();
+        } catch (_) {
+          stopAudio();
+        }
+      },
+      playExpectedWord: (item) => {
+        const chunk = currentChunk();
+        if (!chunk || !item) return;
+        const highlight = (chunk.highlights || []).find((h) => {
+          return item.start >= h.start_char && item.start < h.end_char;
+        });
+        if (highlight) playHighlightClip(highlight);
+        else playFullCard({ startTimer: false });
+      },
     });
   }
 
