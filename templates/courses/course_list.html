@@ -19,7 +19,11 @@
         <h1 class="mv-title">{{ ui.my_courses }}</h1>
         <p class="mv-lead">{{ ui.my_courses_lead }}</p>
       </div>
-      <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary hidden sm:inline-flex">{{ ui.new_course }}</a>
+      {% if can_create_course %}
+        <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary hidden sm:inline-flex">{{ ui.new_course }}</a>
+      {% else %}
+        <span class="mv-btn mv-btn-ghost hidden sm:inline-flex" style="cursor:default;opacity:0.75" title="{{ limit_courses_msg }}">{{ limit_courses_msg }}</span>
+      {% endif %}
     </div>
 
     <div class="space-y-3" data-course-feed-list {% if not courses %}hidden{% endif %}>
@@ -29,11 +33,18 @@
     <div class="mv-empty" data-course-feed-empty {% if courses %}hidden{% endif %}>
       <h2>{{ ui.no_courses_yet }}</h2>
       <p>{{ ui.create_course_hint }}</p>
-      <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.create_course }}</a>
+      {% if can_create_course %}
+        <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.create_course }}</a>
+      {% else %}
+        <p class="mt-5 text-sm text-slate-400">{{ limit_courses_msg }}</p>
+      {% endif %}
     </div>
 
-    <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>
-    <p data-course-feed-loading class="py-3 text-center text-sm text-slate-500" hidden>{{ ui.loading_more }}</p>
+    <div data-course-feed-sentinel class="h-10" aria-hidden="true" {% if not feed_has_more %}hidden{% endif %}></div>
+    <div data-course-feed-loading hidden aria-live="polite">
+      <span class="mv-busy-spin" aria-hidden="true"></span>
+      <span>{{ ui.loading_more }}</span>
+    </div>
   </div>
 {% endblock %}
 

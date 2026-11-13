@@ -141,16 +141,27 @@
 
     function applyCrop() {
       if (!cropper) return;
+      const applyBtn = modal.querySelector("#mv-crop-apply");
+      if (applyBtn && window.MvBusy && window.MvBusy.isBusy(applyBtn)) return;
+      if (applyBtn && window.MvBusy) {
+        window.MvBusy.lock(applyBtn, { label: t("working", "Working…") });
+      }
       const canvas = cropper.getCroppedCanvas({
         maxWidth: maxEdge,
         maxHeight: maxEdge,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: "high",
       });
-      if (!canvas) return;
+      if (!canvas) {
+        if (applyBtn && window.MvBusy) window.MvBusy.unlock(applyBtn);
+        return;
+      }
       canvas.toBlob(
         function (blob) {
-          if (!blob) return;
+          if (!blob) {
+            if (applyBtn && window.MvBusy) window.MvBusy.unlock(applyBtn);
+            return;
+          }
           const fileName = (input.files && input.files[0] && input.files[0].name) || "image.jpg";
           const base = fileName.replace(/\.[^.]+$/, "") || "image";
           const file = new File([blob], base + ".jpg", { type: "image/jpeg" });
@@ -162,6 +173,7 @@
           destroyCropper();
           activeSession = null;
           closeModal(modal);
+          if (applyBtn && window.MvBusy) window.MvBusy.unlock(applyBtn);
         },
         "image/jpeg",
         quality

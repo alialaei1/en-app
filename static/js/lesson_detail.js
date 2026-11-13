@@ -88,9 +88,12 @@
     reprocessForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const csrf = reprocessForm.querySelector("[name=csrfmiddlewaretoken]")?.value;
-      showOverlay();
-      updateOverlay("Please wait — do not click anything", "Starting re-process…", 2);
-      try {
+      const submitter =
+        event.submitter ||
+        reprocessForm.querySelector('button[type="submit"], input[type="submit"]');
+      const run = async () => {
+        showOverlay();
+        updateOverlay("Please wait — do not click anything", "Starting re-process…", 2);
         const response = await fetch(reprocessForm.action, {
           method: "POST",
           headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -99,8 +102,19 @@
         const payload = await response.json();
         if (!payload.ok) throw new Error("Could not start re-process.");
         pollUntilDone();
+      };
+      try {
+        if (window.MvBusy && submitter) {
+          await window.MvBusy.run(submitter, run, {
+            label: t("working", "Working…"),
+            keepLocked: true,
+          });
+        } else {
+          await run();
+        }
       } catch (err) {
         hideOverlay();
+        if (window.MvBusy && submitter) window.MvBusy.unlock(submitter);
         alert(err.message || "Re-process failed to start.");
       }
     });

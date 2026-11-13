@@ -32,7 +32,7 @@
           </div>
         {% endfor %}
 
-        <button type="submit" class="mv-btn mv-btn-primary w-full">{{ ui.log_in }}</button>
+        <button type="submit" class="mv-btn mv-btn-primary w-full" data-mv-busy-label="{{ ui.working }}">{{ ui.log_in }}</button>
       </form>
 
       <div class="my-6 flex items-center gap-3">

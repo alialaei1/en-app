@@ -54,7 +54,11 @@
           <div class="mv-actions"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
             {% if can_manage %}
               <a href="{% url 'course_edit' course.pk %}" class="mv-btn mv-btn-ghost">{{ ui.edit_course }}</a>
-              <a href="{% url 'section_create' course.pk %}" class="mv-btn mv-btn-primary">{{ ui.add_section }}</a>
+              {% if can_add_section %}
+                <a href="{% url 'section_create' course.pk %}" class="mv-btn mv-btn-primary">{{ ui.add_section }}</a>
+              {% else %}
+                <span class="mv-btn mv-btn-ghost" style="cursor:default;opacity:0.75" title="{{ limit_sections_msg }}">{{ limit_sections_msg }}</span>
+              {% endif %}
               <form method="post" action="{% url 'course_delete' course.pk %}" data-confirm="{{ ui.confirm_delete_course }}">
                 {% csrf_token %}
                 <button type="submit" class="mv-btn mv-btn-danger">{{ ui.delete }}</button>
@@ -66,13 +70,13 @@
                 <form method="post" action="{% url 'course_enroll' course.pk %}">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.path }}" />
-                  <button type="submit" class="mv-btn mv-btn-primary">{{ ui.enroll_in_course }}</button>
+                  <button type="submit" class="mv-btn mv-btn-primary" data-mv-busy-label="{{ ui.working }}">{{ ui.enroll_in_course }}</button>
                 </form>
               {% else %}
                 <form method="post" action="{% url 'course_enroll' course.pk %}">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.path }}" />
-                  <button type="submit" class="mv-btn mv-btn-primary">{{ ui.request_enroll }}</button>
+                  <button type="submit" class="mv-btn mv-btn-primary" data-mv-busy-label="{{ ui.working }}">{{ ui.request_enroll }}</button>
                 </form>
               {% endif %}
             {% else %}
@@ -196,7 +200,11 @@
         {% endif %}
       </div>
       {% if can_manage %}
-        <a href="{% url 'section_create' course.pk %}" class="text-sm text-emerald-400 hover:text-emerald-300">{{ ui.new_section }}</a>
+        {% if can_add_section %}
+          <a href="{% url 'section_create' course.pk %}" class="text-sm text-emerald-400 hover:text-emerald-300">{{ ui.new_section }}</a>
+        {% else %}
+          <span class="text-sm text-slate-500">{{ limit_sections_msg }}</span>
+        {% endif %}
       {% endif %}
     </div>
 
@@ -229,7 +237,11 @@
               </div>
               {% if can_manage %}
                 <div class="flex flex-wrap gap-2"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
-                  <a href="{% url 'lesson_create' section.pk %}" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400">{{ ui.add_lesson }}</a>
+                  {% if section.lessons.all|length < max_lessons_per_section %}
+                    <a href="{% url 'lesson_create' section.pk %}" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400">{{ ui.add_lesson }}</a>
+                  {% else %}
+                    <span class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-400" title="{{ limit_lessons_msg }}">{{ limit_lessons_msg }}</span>
+                  {% endif %}
                   <a href="{% url 'section_edit' section.pk %}" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700">{{ ui.edit }}</a>
                   <form method="post" action="{% url 'section_delete' section.pk %}" data-confirm="{{ ui.confirm_delete_section }}">
                     {% csrf_token %}
@@ -273,6 +285,18 @@
                           {% elif lesson.processing_status == 'failed' %}{{ ui.failed }}
                           {% else %}{{ lesson.get_processing_status_display }}{% endif %}
                         </p>
+                        {% if can_study and lesson.chunk_count %}
+                          <div class="mv-lesson-study-progress" {% if ui_rtl %}dir="rtl" lang="fa"{% endif %}>
+                            <div class="mv-lesson-study-progress__bar" aria-hidden="true">
+                              <span class="mv-lesson-study-progress__fill" style="width: {{ lesson.study_done_pct|default:0 }}%"></span>
+                            </div>
+                            <p class="mv-lesson-study-progress__meta">
+                              <span class="is-done">{{ lesson.study_done_pct|default:0 }}% {{ ui.study_graded }}</span>
+                              <span class="is-sep" aria-hidden="true">·</span>
+                              <span class="is-left">{{ lesson.study_left_pct|default:100 }}% {{ ui.study_ungraded }}</span>
+                            </p>
+                          </div>
+                        {% endif %}
                       </div>
                     </div>
                     <div class="mv-actions w-full sm:w-auto"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
@@ -311,7 +335,11 @@
               <p class="rounded-xl border border-dashed border-slate-700 px-4 py-6 text-sm text-slate-500"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
                 {{ ui.no_lessons_section }}
                 {% if can_manage %}
-                  <a href="{% url 'lesson_create' section.pk %}" class="text-emerald-400 hover:text-emerald-300">{{ ui.add_one }}</a>
+                  {% if section.lessons.all|length < max_lessons_per_section %}
+                    <a href="{% url 'lesson_create' section.pk %}" class="text-emerald-400 hover:text-emerald-300">{{ ui.add_one }}</a>
+                  {% else %}
+                    <span class="text-slate-500">{{ limit_lessons_msg }}</span>
+                  {% endif %}
                 {% endif %}
               </p>
             {% endif %}
@@ -326,9 +354,13 @@
         <h3 class="text-lg font-semibold text-white">{{ ui.no_sections_yet }}</h3>
         <p class="mt-2 text-slate-400">{{ ui.break_into_sections }}</p>
         {% if can_manage %}
-          <a href="{% url 'section_create' course.pk %}" class="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
-            {{ ui.create_section }}
-          </a>
+          {% if can_add_section %}
+            <a href="{% url 'section_create' course.pk %}" class="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+              {{ ui.create_section }}
+            </a>
+          {% else %}
+            <p class="mt-6 text-sm text-slate-500">{{ limit_sections_msg }}</p>
+          {% endif %}
         {% endif %}
       </div>
     {% endif %}
@@ -458,7 +490,7 @@
               <label class="mb-2 block text-xs uppercase tracking-wide text-slate-500" for="{{ review_form.comment.id_for_label }}">{{ review_form.comment.label }}</label>
               {{ review_form.comment }}
               <div class="mt-4 flex flex-wrap gap-2">
-                <button type="submit" class="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+                <button type="submit" class="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400" data-mv-busy-label="{{ ui.saving }}">
                   {% if user_review %}{{ ui.update_review }}{% else %}{{ ui.submit_review }}{% endif %}
                 </button>
                 {% if user_review %}
@@ -483,31 +515,48 @@
             </p>
           {% endif %}
 
-          {% if reviews %}
-            <div class="space-y-3">
-              {% for review in reviews %}
-                <article class="rounded-2xl border border-slate-800 bg-slate-950/30 px-4 py-4">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p class="font-medium text-slate-100" dir="ltr">
-                        {% firstof review.user.profile.public_name review.user.email review.user.username %}
-                      </p>
-                      <p class="mt-1 text-sm text-amber-200">
-                        {% for i in "12345" %}{% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}{% endfor %}
-                        <span class="ms-1 text-slate-400">{{ review.rating }}/5</span>
-                      </p>
-                    </div>
-                    <p class="text-xs text-slate-500">{{ review.updated_at|date:"Y-m-d" }}</p>
-                  </div>
-                  {% if review.comment %}
-                    <p class="mt-3 text-sm leading-6 text-slate-300" dir="auto">{{ review.comment }}</p>
-                  {% endif %}
-                </article>
-              {% endfor %}
+          <div
+            id="reviews-list-root"
+            data-reviews-list-root
+            data-reviews-url="{{ reviews_url }}"
+            data-reviews-page="{{ reviews_page }}"
+            data-reviews-pages="{{ reviews_pages }}"
+          >
+            <div class="space-y-3" data-reviews-list>
+              {% include "courses/_review_items.html" %}
             </div>
-          {% else %}
-            <p class="text-sm text-slate-500">{{ ui.no_reviews_yet }}</p>
-          {% endif %}
+            <div
+              class="mt-4 flex flex-wrap items-center justify-between gap-3"
+              data-reviews-pager
+              {% if reviews_pages <= 1 %}hidden{% endif %}
+            >
+              <button
+                type="button"
+                class="mv-btn mv-btn-ghost"
+                style="min-height:2.35rem"
+                data-reviews-prev
+                {% if not reviews_has_prev %}disabled{% endif %}
+              >
+                {{ ui.previous }}
+              </button>
+              <p class="text-sm text-slate-400" data-reviews-page-label>
+                {{ reviews_page_label }}
+              </p>
+              <button
+                type="button"
+                class="mv-btn mv-btn-ghost"
+                style="min-height:2.35rem"
+                data-reviews-next
+                {% if not reviews_has_next %}disabled{% endif %}
+              >
+                {{ ui.next }}
+              </button>
+            </div>
+            <p class="mt-3 hidden text-center text-sm text-slate-500" data-reviews-loading>
+              <span class="mv-busy-spin" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-inline-end:0.4rem"></span>
+              {{ ui.loading }}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -649,6 +698,105 @@
 
       var infoModal = document.getElementById("course-info-modal");
       var reviewsModal = document.getElementById("reviews-modal");
+      var uiNode = document.getElementById("ui-i18n");
+      var UI = {};
+      try {
+        UI = uiNode ? JSON.parse(uiNode.textContent || "{}") : {};
+      } catch (e) {
+        UI = {};
+      }
+
+      function pageLabel(page, pages) {
+        var template = UI.page_of || "Page {page} of {pages}";
+        return String(template)
+          .split("{page}").join(String(page))
+          .split("{pages}").join(String(pages));
+      }
+
+      function initReviewsPager() {
+        var root = document.querySelector("[data-reviews-list-root]");
+        if (!root) return;
+        var listEl = root.querySelector("[data-reviews-list]");
+        var pagerEl = root.querySelector("[data-reviews-pager]");
+        var prevBtn = root.querySelector("[data-reviews-prev]");
+        var nextBtn = root.querySelector("[data-reviews-next]");
+        var labelEl = root.querySelector("[data-reviews-page-label]");
+        var loadingEl = root.querySelector("[data-reviews-loading]");
+        var endpoint = root.getAttribute("data-reviews-url") || "";
+        var page = Number(root.getAttribute("data-reviews-page") || 1) || 1;
+        var pages = Number(root.getAttribute("data-reviews-pages") || 1) || 1;
+        var loading = false;
+
+        function setBusy(on) {
+          loading = on;
+          if (loadingEl) loadingEl.classList.toggle("hidden", !on);
+          if (prevBtn) prevBtn.disabled = on || page <= 1;
+          if (nextBtn) nextBtn.disabled = on || page >= pages;
+        }
+
+        function syncPager() {
+          root.setAttribute("data-reviews-page", String(page));
+          root.setAttribute("data-reviews-pages", String(pages));
+          if (labelEl) labelEl.textContent = pageLabel(page, pages);
+          if (pagerEl) {
+            if (pages > 1) pagerEl.removeAttribute("hidden");
+            else pagerEl.setAttribute("hidden", "");
+          }
+          if (prevBtn) prevBtn.disabled = loading || page <= 1;
+          if (nextBtn) nextBtn.disabled = loading || page >= pages;
+        }
+
+        function loadPage(nextPage) {
+          if (!endpoint || loading) return;
+          if (nextPage < 1 || nextPage > pages) return;
+          setBusy(true);
+          var url = endpoint + (endpoint.indexOf("?") >= 0 ? "&" : "?") + "page=" + encodeURIComponent(String(nextPage));
+          fetch(url, {
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+          })
+            .then(function (res) {
+              if (!res.ok) throw new Error("reviews_http_" + res.status);
+              return res.json();
+            })
+            .then(function (data) {
+              if (!data || !data.ok) throw new Error("reviews_bad_payload");
+              page = Number(data.page) || nextPage;
+              pages = Number(data.pages) || pages;
+              if (listEl) listEl.innerHTML = data.html || "";
+              syncPager();
+              if (listEl && typeof listEl.scrollIntoView === "function") {
+                try {
+                  listEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                } catch (e) {}
+              }
+            })
+            .catch(function () {
+              if (labelEl) {
+                labelEl.textContent = UI.feed_load_failed || "Could not load.";
+              }
+            })
+            .finally(function () {
+              setBusy(false);
+              syncPager();
+            });
+        }
+
+        if (prevBtn) {
+          prevBtn.addEventListener("click", function () {
+            loadPage(page - 1);
+          });
+        }
+        if (nextBtn) {
+          nextBtn.addEventListener("click", function () {
+            loadPage(page + 1);
+          });
+        }
+        syncPager();
+      }
 
       var infoApi = bindModal(infoModal, "[data-course-info-open]", "[data-course-info-close]");
       var reviewsApi = bindModal(reviewsModal, "[data-reviews-open]", "[data-reviews-close]", {
@@ -674,6 +822,8 @@
         }
         if (infoApi.isOpen()) infoApi.close();
       });
+
+      initReviewsPager();
 
       try {
         var params = new URLSearchParams(window.location.search);

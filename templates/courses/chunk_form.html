@@ -103,7 +103,7 @@
             <p class="mt-2 text-xs text-slate-500">{{ ui.display_lines_help }}</p>
           </div>
 
-          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400" data-mv-busy-label="{{ ui.saving }}">
             {{ ui.save_sentence }}
           </button>
         </form>
@@ -155,7 +155,7 @@
             </div>
           </div>
 
-          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
+          <button type="submit" class="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400" data-mv-busy-label="{{ ui.saving }}">
             {{ ui.add_highlight }}
           </button>
         </form>

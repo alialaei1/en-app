@@ -33,6 +33,7 @@ urlpatterns = [
         views.course_review_delete,
         name="course_review_delete",
     ),
+    path("courses/<int:pk>/reviews/", views.course_reviews, name="course_reviews"),
     path("courses/<int:pk>/move/<str:direction>/", views.course_move, name="course_move"),
     path(
         "courses/<int:course_pk>/sections/new/",

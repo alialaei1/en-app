@@ -118,7 +118,8 @@
   let cardTimerRaf = null;
   let cardTimerRunning = false;
   let cardTimerStopped = false;
-  let cardCompleted = false;
+  let writingCompleted = false;
+  let speakingCompleted = false;
   let cardElapsedMs = 0;
   let studySettings = {
     playback_rate: 1,
@@ -211,9 +212,27 @@
     return 1;
   }
 
+  function modeBestMs(chunk, mode) {
+    if (!chunk) return null;
+    return mode === "speaking" ? chunk.best_speak_ms : chunk.best_type_ms;
+  }
+
+  function isModeCompleted(mode) {
+    return mode === "speaking" ? speakingCompleted : writingCompleted;
+  }
+
+  function setModeCompleted(mode, value) {
+    if (mode === "speaking") speakingCompleted = Boolean(value);
+    else writingCompleted = Boolean(value);
+  }
+
   function updateBestRecordLabel(chunk) {
     if (!bestRecordEl) return;
-    bestRecordEl.textContent = `${t("best_label", "Best")}: ${formatMs(chunk?.best_type_ms)}`;
+    const label =
+      studyAnswerMode === "speaking"
+        ? t("best_label_speaking", "Best (Speaking)")
+        : t("best_label_writing", "Best (Writing)");
+    bestRecordEl.textContent = `${label}: ${formatMs(modeBestMs(chunk, studyAnswerMode))}`;
   }
 
   function setTimerDisplay(ms) {
@@ -234,13 +253,16 @@
     cardTimerRaf = window.requestAnimationFrame(tickCardTimer);
   }
 
-  function resetCardTimerIdle() {
+  function resetCardTimerIdle({ resetModeFlags = true } = {}) {
     stopCardTimerLoop();
     cardTimerStart = 0;
     cardElapsedMs = 0;
     cardTimerRunning = false;
     cardTimerStopped = false;
-    cardCompleted = false;
+    if (resetModeFlags) {
+      writingCompleted = false;
+      speakingCompleted = false;
+    }
     setTimerDisplay(0);
     if (timerStatusEl) {
       timerStatusEl.textContent = t("waiting_play_meaning", "Waiting for Play or Show meaning…");
@@ -259,7 +281,7 @@
   }
 
   function ensureCardTimerStarted() {
-    if (cardCompleted || cardTimerRunning || cardTimerStopped) return;
+    if (isModeCompleted(studyAnswerMode) || cardTimerRunning || cardTimerStopped) return;
     stopCardTimerLoop();
     cardTimerStart = performance.now();
     cardElapsedMs = 0;
@@ -714,13 +736,13 @@
       if (settingsStatus) settingsStatus.textContent = t("settings_url_missing", "Settings URL missing.");
       return;
     }
-    const formData = new FormData();
-    formData.append("playback_rate", String(getPlaybackRate()));
-    formData.append("autoplay", studySettings.autoplay ? "1" : "0");
-    formData.append("speaking_score_threshold", String(getSpeakThreshold()));
-    formData.append("csrfmiddlewaretoken", csrf);
-    if (settingsStatus) settingsStatus.textContent = t("saving", "Saving…");
-    try {
+    const run = async () => {
+      const formData = new FormData();
+      formData.append("playback_rate", String(getPlaybackRate()));
+      formData.append("autoplay", studySettings.autoplay ? "1" : "0");
+      formData.append("speaking_score_threshold", String(getSpeakThreshold()));
+      formData.append("csrfmiddlewaretoken", csrf);
+      if (settingsStatus) settingsStatus.textContent = t("saving", "Saving…");
       const response = await fetch(lesson.settings_url, {
         method: "POST",
         body: formData,
@@ -736,6 +758,15 @@
       syncSettingsForm();
       applyAudioRate();
       if (settingsStatus) settingsStatus.textContent = t("settings_saved_for_lesson", "Settings saved for this lesson.");
+    };
+    try {
+      if (window.MvBusy && settingsSaveBtn) {
+        await window.MvBusy.run(settingsSaveBtn, run, {
+          label: t("saving", "Saving…"),
+        });
+      } else {
+        await run();
+      }
     } catch (err) {
       if (settingsStatus) {
         settingsStatus.textContent = err.message || t("could_not_save_settings", "Could not save settings.");
@@ -743,12 +774,14 @@
     }
   }
 
-  async function saveTypingRecord(timeMs) {
+  async function saveStudyRecord(timeMs, mode) {
     const chunk = currentChunk();
     if (!chunk) return;
-    const previousBest = chunk.best_type_ms;
+    const recordMode = mode === "speaking" ? "speaking" : "writing";
+    const previousBest = modeBestMs(chunk, recordMode);
     const formData = new FormData();
     formData.append("time_ms", String(timeMs));
+    formData.append("mode", recordMode);
     formData.append("csrfmiddlewaretoken", csrf);
     try {
       const response = await fetch(recordUrl(chunk.id), {
@@ -761,28 +794,41 @@
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || t("could_not_save_record", "Could not save record."));
       }
-      chunk.best_type_ms = payload.best_type_ms;
+      if (payload.best_type_ms != null) chunk.best_type_ms = payload.best_type_ms;
+      if (payload.best_speak_ms != null) chunk.best_speak_ms = payload.best_speak_ms;
       const original = allChunks.find((item) => item.id === chunk.id);
-      if (original) original.best_type_ms = payload.best_type_ms;
+      if (original) {
+        if (payload.best_type_ms != null) original.best_type_ms = payload.best_type_ms;
+        if (payload.best_speak_ms != null) original.best_speak_ms = payload.best_speak_ms;
+      }
       updateBestRecordLabel(chunk);
+      const bestMs =
+        payload.best_ms != null
+          ? payload.best_ms
+          : modeBestMs(chunk, recordMode);
       showCompletionResult({
         timeMs: payload.time_ms,
         previousBestMs: payload.previous_best_ms ?? previousBest,
-        bestMs: payload.best_type_ms,
+        bestMs,
         isNewBest: payload.is_new_best,
         suggestedLevel: payload.suggested_level,
       });
-      if (payload.suggested_level) {
+      if (payload.suggested_level && recordMode === "writing") {
         if (levelStatus) {
           levelStatus.textContent = `${t("suggested_level", "Suggested level")}: ${payload.suggested_level}/7`;
         }
       }
     } catch (err) {
       const suggested = suggestLevelLocal(chunk.text || "", timeMs);
+      const localBest =
+        previousBest != null ? Math.min(previousBest, timeMs) : timeMs;
+      if (recordMode === "speaking") chunk.best_speak_ms = localBest;
+      else chunk.best_type_ms = localBest;
+      updateBestRecordLabel(chunk);
       showCompletionResult({
         timeMs,
         previousBestMs: previousBest,
-        bestMs: previousBest != null ? Math.min(previousBest, timeMs) : timeMs,
+        bestMs: localBest,
         isNewBest: previousBest == null || timeMs < previousBest,
         suggestedLevel: suggested,
       });
@@ -790,6 +836,21 @@
         levelStatus.textContent = err.message || t("record_saved_local", "Record saved locally only.");
       }
     }
+  }
+
+  function finishModeAttempt(mode) {
+    const recordMode = mode === "speaking" ? "speaking" : "writing";
+    if (isModeCompleted(recordMode)) return null;
+    let timeMs = 0;
+    if (cardTimerRunning) {
+      timeMs = freezeCardTimer();
+    } else if (cardTimerStopped) {
+      timeMs = Math.max(1, Math.round(cardElapsedMs || 0));
+    }
+    if (!timeMs) return null;
+    setModeCompleted(recordMode, true);
+    saveStudyRecord(timeMs, recordMode);
+    return timeMs;
   }
 
   function showCompletionResult({ timeMs, previousBestMs, bestMs, isNewBest, suggestedLevel }) {
@@ -1199,12 +1260,10 @@
     }
     renderCardText();
 
-    if (fullyGreen && !cardCompleted) {
-      cardCompleted = true;
-      const timeMs = freezeCardTimer();
+    if (fullyGreen && studyAnswerMode === "writing" && !isModeCompleted("writing")) {
       stopSpeechRecognition({ keepHint: true });
       if (typeInput) typeInput.blur();
-      saveTypingRecord(timeMs);
+      finishModeAttempt("writing");
     }
   }
 
@@ -1268,14 +1327,18 @@
     const next = mode === "speaking" ? "speaking" : "writing";
     if (next === studyAnswerMode) {
       syncStudyAnswerModeUi();
+      updateBestRecordLabel(currentChunk());
       return;
     }
     if (studyAnswerMode === "speaking" && next === "writing") {
       stopSpeechRecognition({ keepHint: true });
       if (studySpeakApi) studySpeakApi.reset();
     }
+    // Each mode keeps its own saved record; live timer restarts for the other mode.
+    resetCardTimerIdle({ resetModeFlags: false });
     studyAnswerMode = next;
     syncStudyAnswerModeUi();
+    updateBestRecordLabel(currentChunk());
     if (studyAnswerMode === "writing" && typeInput) {
       window.setTimeout(() => typeInput.focus(), 20);
     }
@@ -1401,7 +1464,7 @@
       }
     }
     setSpeechUi(false);
-    if (!keepHint && typeHint && !cardCompleted) {
+    if (!keepHint && typeHint && !isModeCompleted(studyAnswerMode)) {
       typeHint.textContent = studyModeCopy(studyAnswerMode, "hint");
     }
   }
@@ -2129,13 +2192,13 @@
     }
   }
 
-  async function saveLevel(level) {
+  async function saveLevel(level, triggerBtn) {
     const chunk = currentChunk();
     if (!chunk) return;
-    const formData = new FormData();
-    formData.append("study_level", String(level));
-    formData.append("csrfmiddlewaretoken", csrf);
-    try {
+    const run = async () => {
+      const formData = new FormData();
+      formData.append("study_level", String(level));
+      formData.append("csrfmiddlewaretoken", csrf);
       const response = await fetch(levelUrl(chunk.id), {
         method: "POST",
         body: formData,
@@ -2151,6 +2214,13 @@
       const original = allChunks.find((item) => item.id === chunk.id);
       if (original) original.study_level = payload.study_level;
       renderLevels(chunk);
+    };
+    try {
+      if (window.MvBusy && triggerBtn) {
+        await window.MvBusy.run(triggerBtn, run, { label: t("saving", "Saving…") });
+      } else {
+        await run();
+      }
     } catch (err) {
       if (levelStatus) levelStatus.textContent = err.message || t("could_not_save_level", "Could not save level.");
     }
@@ -2368,9 +2438,27 @@
         if (typeHint) typeHint.textContent = message;
         if (levelStatus) levelStatus.textContent = message;
       },
+      onStart: () => {
+        // If Play was not pressed yet, start the speak timer after the 3s countdown.
+        if (studyAnswerMode !== "speaking") return;
+        if (cardTimerRunning || cardTimerStopped || isModeCompleted("speaking")) return;
+        window.setTimeout(() => {
+          if (studyAnswerMode !== "speaking") return;
+          if (cardTimerRunning || cardTimerStopped || isModeCompleted("speaking")) return;
+          ensureCardTimerStarted();
+        }, 3000);
+      },
+      onProcessingStart: () => {
+        // Stop the speak timer as soon as End is pressed (exclude STT wait).
+        if (studyAnswerMode !== "speaking") return;
+        if (cardTimerRunning) freezeCardTimer();
+      },
       onComplete: () => {
         revealAllHighlightsForSpeakReview();
-        ensureCardTimerStarted();
+        // Speaking has its own best-time record, separate from writing.
+        if (studyAnswerMode === "speaking") {
+          finishModeAttempt("speaking");
+        }
       },
       onReviewReady: () => {
         revealAllHighlightsForSpeakReview();
@@ -2523,7 +2611,8 @@
     levelsEl.addEventListener("click", (event) => {
       const btn = event.target.closest(".level-btn");
       if (!btn) return;
-      saveLevel(Number(btn.dataset.level));
+      if (window.MvBusy && window.MvBusy.isBusy(btn)) return;
+      saveLevel(Number(btn.dataset.level), btn);
     });
   }
 

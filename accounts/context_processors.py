@@ -1,7 +1,8 @@
 from django.conf import settings
 
+from .limits import can_create_course, get_limits_for_user
 from .models import Profile, ensure_profile
-from .ui_i18n import ui_bundle
+from .ui_i18n import tf, ui_bundle
 
 THEME_COOKIE = "mv_theme"
 APP_LANG_COOKIE = "mv_app_lang"
@@ -34,6 +35,15 @@ def user_preferences(request):
     if theme == Profile.Theme.SYSTEM:
         resolved = Profile.Theme.DARK
 
+    create_course_ok = False
+    max_courses = 0
+    limit_courses_msg = ""
+    if request.user.is_authenticated:
+        limits = get_limits_for_user(request.user)
+        max_courses = limits.max_courses
+        create_course_ok = can_create_course(request.user)
+        limit_courses_msg = tf(app_language, "limit_courses_reached", max=max_courses)
+
     return {
         "ui_theme": theme,
         "ui_theme_resolved": resolved,
@@ -42,4 +52,7 @@ def user_preferences(request):
         "ui_rtl": app_language == Profile.AppLanguage.FA,
         "ui": ui_bundle(app_language),
         "app_version": getattr(settings, "APP_VERSION", "1.0.0"),
+        "can_create_course": create_course_ok,
+        "max_courses": max_courses,
+        "limit_courses_msg": limit_courses_msg,
     }

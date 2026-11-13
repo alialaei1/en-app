@@ -160,6 +160,18 @@ class UserLimits(models.Model):
         default=DEFAULTS["image_max_mb"],
         help_text="Max course cover / avatar image size in megabytes.",
     )
+    max_courses = models.PositiveIntegerField(
+        default=DEFAULTS["max_courses"],
+        help_text="Max courses this user may create.",
+    )
+    max_sections_per_course = models.PositiveIntegerField(
+        default=DEFAULTS["max_sections_per_course"],
+        help_text="Max sections allowed in each of this user's courses.",
+    )
+    max_lessons_per_section = models.PositiveIntegerField(
+        default=DEFAULTS["max_lessons_per_section"],
+        help_text="Max lessons allowed in each section.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

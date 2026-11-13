@@ -43,7 +43,14 @@ from .models import (
     UserChunkStudyProgress,
     UserLessonStudySettings,
 )
-from .feed import feed_json, page_number, paginate_items, wants_feed_json
+from .feed import (
+    REVIEW_PAGE_SIZE,
+    feed_json,
+    page_count,
+    page_number,
+    paginate_items,
+    wants_feed_json,
+)
 from .serializers import chunk_payload, highlight_payload, study_lesson_payload
 from .services.import_markup import export_lesson_document
 from .services.timings import highlight_audio_span
@@ -268,6 +275,8 @@ def explore(request):
 
 @login_required
 def course_list(request):
+    from accounts.limits import can_create_course, get_limits_for_user
+
     qs = (
         _course_queryset()
         .filter(owner=request.user)
@@ -276,11 +285,14 @@ def course_list(request):
     page = page_number(request)
     total = qs.count()
     courses, has_more = paginate_items(qs, page)
+    limits = get_limits_for_user(request.user)
     ctx = {
         "courses": courses,
         "feed_page": page,
         "feed_has_more": has_more,
         "result_count": total,
+        "can_create_course": can_create_course(request.user),
+        "max_courses": limits.max_courses,
     }
     if wants_feed_json(request):
         html = render_to_string(
@@ -572,10 +584,25 @@ def course_review_delete(request, pk):
 @login_required
 @require_http_methods(["GET", "POST"])
 def course_create(request):
+    from accounts.limits import can_create_course, get_limits_for_user
+
     lang = request_app_lang(request)
+    limits = get_limits_for_user(request.user)
+    if not can_create_course(request.user):
+        messages.error(
+            request,
+            tf(lang, "limit_max_courses", max=limits.max_courses),
+        )
+        return redirect("course_list")
     form = CourseForm(request.POST or None, request.FILES or None, user=request.user, lang=lang)
     _localize_course_form(form, lang)
     if request.method == "POST" and form.is_valid():
+        if not can_create_course(request.user):
+            messages.error(
+                request,
+                tf(lang, "limit_max_courses", max=limits.max_courses),
+            )
+            return redirect("course_list")
         course = form.save(commit=False)
         course.owner = request.user
         course.save()
@@ -586,6 +613,59 @@ def course_create(request):
         "courses/course_form.html",
         {"form": form, "page_title": t(request_app_lang(request), "page_new_course"), "submit_label": t(request_app_lang(request), "submit_create_course")},
     )
+
+
+def _reviews_queryset(course):
+    return CourseReview.objects.filter(course=course).select_related(
+        "user", "user__profile"
+    ).order_by("-updated_at", "-id")
+
+
+def _attach_lesson_study_progress(course, user) -> None:
+    """Attach per-lesson graded % for the current user (study_level set = done)."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return
+    lesson_ids: list[int] = []
+    for section in course.sections.all():
+        for lesson in section.lessons.all():
+            lesson_ids.append(lesson.pk)
+            lesson.study_done = 0
+            lesson.study_left = int(getattr(lesson, "chunk_count", 0) or 0)
+            lesson.study_done_pct = 0
+            lesson.study_left_pct = 100 if lesson.study_left else 0
+    if not lesson_ids:
+        return
+
+    graded_rows = (
+        UserChunkStudyProgress.objects.filter(
+            user=user,
+            chunk__lesson_id__in=lesson_ids,
+            study_level__isnull=False,
+        )
+        .values("chunk__lesson_id")
+        .annotate(n=Count("id"))
+    )
+    graded_map = {row["chunk__lesson_id"]: int(row["n"] or 0) for row in graded_rows}
+    for section in course.sections.all():
+        for lesson in section.lessons.all():
+            total = int(getattr(lesson, "chunk_count", 0) or 0)
+            done = min(graded_map.get(lesson.pk, 0), total) if total else 0
+            left = max(0, total - done)
+            if total > 0:
+                done_pct = int(round(100.0 * done / total))
+                # Keep done + left = 100 for display.
+                if done == total:
+                    done_pct = 100
+                elif done == 0:
+                    done_pct = 0
+                left_pct = 100 - done_pct
+            else:
+                done_pct = 0
+                left_pct = 0
+            lesson.study_done = done
+            lesson.study_left = left
+            lesson.study_done_pct = done_pct
+            lesson.study_left_pct = left_pct
 
 
 def course_detail(request, pk):
@@ -602,12 +682,6 @@ def course_detail(request, pk):
                     )
                 ),
             ),
-            Prefetch(
-                "reviews",
-                queryset=CourseReview.objects.select_related(
-                    "user", "user__profile"
-                ).order_by("-updated_at", "-id"),
-            ),
         ),
         pk=pk,
     )
@@ -618,10 +692,9 @@ def course_detail(request, pk):
     lang = request_app_lang(request)
     user_review = None
     if request.user.is_authenticated:
-        user_review = next(
-            (r for r in course.reviews.all() if r.user_id == request.user.id),
-            None,
-        )
+        user_review = CourseReview.objects.filter(
+            user=request.user, course=course
+        ).first()
     review_form = CourseReviewForm(instance=user_review, user=request.user if request.user.is_authenticated else None, lang=lang)
     localize_form_labels(
         review_form,
@@ -657,6 +730,34 @@ def course_detail(request, pk):
             e for e in managed if e.status == CourseEnrollment.Status.REJECTED
         ]
 
+    from accounts.limits import can_create_section, get_limits_for_user
+
+    limits = get_limits_for_user(request.user) if request.user.is_authenticated else None
+    max_sections = limits.max_sections_per_course if limits else 0
+    max_lessons = limits.max_lessons_per_section if limits else 0
+    section_add_allowed = (
+        can_manage and limits is not None and can_create_section(request.user, course)
+    )
+    limit_sections_msg = (
+        tf(lang, "limit_sections_reached", max=max_sections) if limits else ""
+    )
+    limit_lessons_msg = (
+        tf(lang, "limit_lessons_reached", max=max_lessons) if limits else ""
+    )
+
+    reviews_page = page_number(request, "reviews_page")
+    reviews_total = int(rating_count or 0)
+    reviews_pages = page_count(reviews_total, REVIEW_PAGE_SIZE)
+    if reviews_page > reviews_pages:
+        reviews_page = reviews_pages
+    reviews, _reviews_has_more = paginate_items(
+        _reviews_queryset(course), reviews_page, REVIEW_PAGE_SIZE
+    )
+
+    can_study = can_manage or enrolled
+    if can_study and request.user.is_authenticated:
+        _attach_lesson_study_progress(course, request.user)
+
     return render(
         request,
         "courses/course_detail.html",
@@ -665,9 +766,17 @@ def course_detail(request, pk):
             "can_manage": can_manage,
             "is_enrolled": enrolled,
             "enrollment_status": my_status,
-            "can_study": can_manage or enrolled,
+            "can_study": can_study,
             "can_review": _can_review_course(request.user, course),
-            "reviews": course.reviews.all(),
+            "reviews": reviews,
+            "reviews_page": reviews_page,
+            "reviews_pages": reviews_pages,
+            "reviews_has_prev": reviews_page > 1,
+            "reviews_has_next": reviews_page < reviews_pages,
+            "reviews_page_label": tf(
+                lang, "page_of", page=reviews_page, pages=reviews_pages
+            ),
+            "reviews_url": reverse("course_reviews", kwargs={"pk": course.pk}),
             "user_review": user_review,
             "review_form": review_form,
             "rating_avg": rating_avg,
@@ -680,7 +789,41 @@ def course_detail(request, pk):
             "pending_enrollments": pending_enrollments,
             "approved_enrollments": approved_enrollments,
             "rejected_enrollments": rejected_enrollments,
+            "can_add_section": section_add_allowed,
+            "max_sections_per_course": max_sections,
+            "max_lessons_per_section": max_lessons,
+            "limit_sections_msg": limit_sections_msg,
+            "limit_lessons_msg": limit_lessons_msg,
         },
+    )
+
+
+@require_GET
+def course_reviews(request, pk):
+    course = get_object_or_404(_course_queryset(), pk=pk)
+    require_course_view(request.user, course)
+    lang = request_app_lang(request)
+    total = CourseReview.objects.filter(course=course).count()
+    pages = page_count(total, REVIEW_PAGE_SIZE)
+    page = page_number(request)
+    if page > pages:
+        page = pages
+    reviews, _ = paginate_items(_reviews_queryset(course), page, REVIEW_PAGE_SIZE)
+    html = render_to_string(
+        "courses/_review_items.html",
+        {"reviews": reviews},
+        request=request,
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "html": html,
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "has_prev": page > 1,
+            "has_next": page < pages,
+        }
     )
 
 
@@ -771,12 +914,27 @@ def course_move(request, pk, direction):
 @login_required
 @require_http_methods(["GET", "POST"])
 def section_create(request, course_pk):
+    from accounts.limits import can_create_section, get_limits_for_user
+
     course = get_object_or_404(Course, pk=course_pk)
     require_course_manage(request.user, course)
     lang = request_app_lang(request)
+    limits = get_limits_for_user(request.user)
+    if not can_create_section(request.user, course):
+        messages.error(
+            request,
+            tf(lang, "limit_max_sections", max=limits.max_sections_per_course),
+        )
+        return redirect("course_detail", pk=course.pk)
     form = SectionForm(request.POST or None, user=request.user, lang=lang)
     _localize_section_form(form, lang)
     if request.method == "POST" and form.is_valid():
+        if not can_create_section(request.user, course):
+            messages.error(
+                request,
+                tf(lang, "limit_max_sections", max=limits.max_sections_per_course),
+            )
+            return redirect("course_detail", pk=course.pk)
         section = form.save(commit=False)
         section.course = course
         section.save()
@@ -992,12 +1150,30 @@ def lesson_status(request, pk):
 @login_required
 @require_http_methods(["GET", "POST"])
 def lesson_create(request, section_pk):
+    from accounts.limits import can_create_lesson, get_limits_for_user
+
     section = get_object_or_404(Section.objects.select_related("course"), pk=section_pk)
     require_course_manage(request.user, section.course)
-    form = LessonForm(request.POST or None, user=request.user, lang=request_app_lang(request))
-    _localize_lesson_form(form, request_app_lang(request))
+    lang = request_app_lang(request)
+    limits = get_limits_for_user(request.user)
+    if not can_create_lesson(request.user, section):
+        msg = tf(lang, "limit_max_lessons", max=limits.max_lessons_per_section)
+        if _wants_json(request) and request.method == "POST":
+            return JsonResponse({"ok": False, "errors": {"__all__": [msg]}}, status=400)
+        messages.error(request, msg)
+        return redirect("course_detail", pk=section.course_id)
+    form = LessonForm(request.POST or None, user=request.user, lang=lang)
+    _localize_lesson_form(form, lang)
     if request.method == "POST":
         if form.is_valid():
+            if not can_create_lesson(request.user, section):
+                msg = tf(lang, "limit_max_lessons", max=limits.max_lessons_per_section)
+                if _wants_json(request):
+                    return JsonResponse(
+                        {"ok": False, "errors": {"__all__": [msg]}}, status=400
+                    )
+                messages.error(request, msg)
+                return redirect("course_detail", pk=section.course_id)
             lesson = form.save(commit=False)
             lesson.section = section
             lesson.processing_status = Lesson.Status.PROCESSING
@@ -1020,14 +1196,11 @@ def lesson_create(request, section_pk):
                         "status_url": reverse("lesson_status", kwargs={"pk": lesson.pk}),
                     }
                 )
-            messages.success(request, t(request_app_lang(request), "lesson_created_processing"))
+            messages.success(request, t(lang, "lesson_created_processing"))
             return redirect("lesson_detail", pk=lesson.pk)
         if _wants_json(request):
             return JsonResponse(_form_errors_json(form), status=400)
 
-    from accounts.limits import get_limits_for_user
-
-    lang = request_app_lang(request)
     limits = get_limits_for_user(request.user)
     return render(
         request,
@@ -1351,12 +1524,17 @@ def chunk_study_record(request, pk):
     )
     require_course_study(request.user, chunk.lesson.section.course)
     raw = (request.POST.get("time_ms") or "").strip()
+    mode = (request.POST.get("mode") or "writing").strip().lower()
+    if mode not in {"writing", "speaking"}:
+        mode = "writing"
     progress = UserChunkStudyProgress.for_user_chunk(request.user, chunk)
     try:
         time_ms = int(float(raw))
         if time_ms <= 0:
             raise ValueError("time must be positive")
-        result = progress.record_type_time(time_ms, text=chunk.text or "")
+        result = progress.record_type_time(
+            time_ms, text=chunk.text or "", mode=mode
+        )
     except (TypeError, ValueError):
         if _wants_json(request):
             return JsonResponse(

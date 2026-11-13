@@ -100,14 +100,21 @@
         <p>{{ ui.be_first_publish }}</p>
       </div>
       {% if user.is_authenticated %}
-        <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.create_course }}</a>
+        {% if can_create_course %}
+          <a href="{% url 'course_create' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.create_course }}</a>
+        {% else %}
+          <p class="mt-5 text-sm text-slate-400">{{ limit_courses_msg }}</p>
+        {% endif %}
       {% else %}
         <a href="{% url 'signup' %}" class="mv-btn mv-btn-primary mt-5">{{ ui.signup_to_create }}</a>
       {% endif %}
     </div>
 
-    <div data-course-feed-sentinel class="h-8" {% if not feed_has_more %}hidden{% endif %}></div>
-    <p data-course-feed-loading class="py-3 text-center text-sm text-slate-500" hidden>{{ ui.loading_more }}</p>
+    <div data-course-feed-sentinel class="h-10" aria-hidden="true" {% if not feed_has_more %}hidden{% endif %}></div>
+    <div data-course-feed-loading hidden aria-live="polite">
+      <span class="mv-busy-spin" aria-hidden="true"></span>
+      <span>{{ ui.loading_more }}</span>
+    </div>
   </div>
 {% endblock %}
 

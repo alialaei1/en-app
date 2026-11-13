@@ -457,11 +457,20 @@
       event.preventDefault();
       const scrollY = window.scrollY;
       const data = new FormData(saveForm);
-      try {
+      const submitter =
+        event.submitter || saveForm.querySelector('button[type="submit"], input[type="submit"]');
+      const run = async () => {
         const payload = await postForm(root.dataset.saveUrl, data);
         state = payload.chunk;
         refreshUI();
         showToast(payload.message || "Saved.");
+      };
+      try {
+        if (window.MvBusy && submitter) {
+          await window.MvBusy.run(submitter, run, { label: t("saving", "Saving…") });
+        } else {
+          await run();
+        }
       } catch (err) {
         showToast(err.message || "Could not save.", true);
       } finally {
@@ -481,7 +490,10 @@
         return;
       }
       const formData = new FormData(highlightForm);
-      try {
+      const submitter =
+        event.submitter ||
+        highlightForm.querySelector('button[type="submit"], input[type="submit"]');
+      const run = async () => {
         const payload = await postForm(root.dataset.highlightAddUrl, formData);
         state = payload.chunk;
         highlightForm.reset();
@@ -491,6 +503,13 @@
         setSelectionFields(null);
         refreshUI();
         showToast(payload.message || "Highlight saved.");
+      };
+      try {
+        if (window.MvBusy && submitter) {
+          await window.MvBusy.run(submitter, run, { label: t("saving", "Saving…") });
+        } else {
+          await run();
+        }
       } catch (err) {
         showToast(err.message || "Could not save highlight.", true);
       } finally {
@@ -518,11 +537,18 @@
         const id = removeBtn.dataset.id;
         const formData = new FormData();
         formData.append("csrfmiddlewaretoken", csrf);
-        try {
+        const run = async () => {
           const payload = await postForm(`/highlights/${id}/delete/`, formData);
           state = payload.chunk;
           refreshUI();
           showToast(payload.message || "Highlight removed.");
+        };
+        try {
+          if (window.MvBusy) {
+            await window.MvBusy.run(removeBtn, run, { label: t("working", "Working…") });
+          } else {
+            await run();
+          }
         } catch (err) {
           showToast(err.message || "Could not remove highlight.", true);
         } finally {
@@ -542,11 +568,18 @@
         formData.append("meaning", meaning);
         formData.append("start_sec", start);
         formData.append("end_sec", end);
-        try {
+        const run = async () => {
           const payload = await postForm(`/highlights/${id}/update/`, formData);
           state = payload.chunk;
           refreshUI();
           showToast(payload.message || "Highlight saved.");
+        };
+        try {
+          if (window.MvBusy) {
+            await window.MvBusy.run(saveBtn, run, { label: t("saving", "Saving…") });
+          } else {
+            await run();
+          }
         } catch (err) {
           showToast(err.message || "Could not save highlight.", true);
         } finally {

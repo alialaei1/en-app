@@ -23,6 +23,8 @@
       thresholdInput: document.getElementById("setting-speak-threshold"),
       thresholdLabel: document.getElementById("setting-speak-threshold-label"),
       errorBox: document.getElementById("study-speak-error"),
+      helpBtn: document.getElementById("study-speak-help-btn"),
+      helpModal: document.getElementById("study-speak-help-modal"),
     };
 
     let phaseTimer = 0;
@@ -437,16 +439,31 @@
     }
 
     function formatSpeakError(payload, status) {
+      const code = payload && payload.code ? String(payload.code) : "";
       const main =
         (payload && payload.error) ||
         t("speak_transcribe_failed", "Could not convert voice to text.");
-      const detail = payload && payload.detail ? String(payload.detail).trim() : "";
-      const code = payload && payload.code ? String(payload.code) : "";
-      const parts = [main];
-      if (code) parts.push(`[${code}]`);
-      if (detail && detail !== main) parts.push(detail);
-      if (status && status >= 400) parts.push(`HTTP ${status}`);
-      return parts.join(" — ");
+      // Learner-facing codes: show only the friendly message (no Whisper/HTTP dump).
+      const friendlyCodes = {
+        empty_transcript: true,
+        empty_upload: true,
+        no_audio: true,
+        ffmpeg_decode: true,
+        ffmpeg_missing: true,
+        whisper_import: true,
+        whisper_model: true,
+        whisper_run: true,
+      };
+      if (code && friendlyCodes[code]) {
+        return main;
+      }
+      // Unknown failures: keep a short message without raw server detail.
+      if (status && status >= 500) {
+        return t("speak_err_http", "Server error while converting voice (HTTP {status}).", {
+          status: status,
+        });
+      }
+      return main;
     }
 
     async function transcribeBlob(blob, chunk) {
@@ -506,9 +523,36 @@
       return String(payload.text || "").trim();
     }
 
+    function openHelpModal() {
+      if (!els.helpModal) return;
+      els.helpModal.classList.remove("hidden");
+      els.helpModal.removeAttribute("hidden");
+      document.body.classList.add("mv-modal-open");
+    }
+
+    function closeHelpModal() {
+      if (!els.helpModal) return;
+      els.helpModal.classList.add("hidden");
+      els.helpModal.setAttribute("hidden", "");
+      if (!document.querySelector(".mv-modal:not([hidden])") && !(els.overlay && els.overlay.classList.contains("is-open"))) {
+        document.body.classList.remove("mv-modal-open");
+      }
+    }
+
     async function finishSession() {
       clearPhaseTimer();
       setPhase("loading");
+      // Freeze the practice timer before STT so processing time is not counted.
+      if (typeof api.onProcessingStart === "function") {
+        try {
+          api.onProcessingStart();
+        } catch (_) {}
+      }
+      if (els.endBtn && window.MvBusy) {
+        window.MvBusy.lock(els.endBtn, {
+          label: t("working", "Working…"),
+        });
+      }
       const chunk = api.getChunk ? api.getChunk() : null;
       let blob = null;
       try {
@@ -521,6 +565,7 @@
       if (!blob) {
         closeOverlay();
         busy = false;
+        if (els.endBtn && window.MvBusy) window.MvBusy.unlock(els.endBtn);
         showError(t("speak_no_audio", "No recording received."));
         return;
       }
@@ -549,6 +594,7 @@
         );
       } finally {
         busy = false;
+        if (els.endBtn && window.MvBusy) window.MvBusy.unlock(els.endBtn);
       }
     }
 
@@ -585,28 +631,47 @@
       phaseTimer = window.setTimeout(tick, 1000);
     }
 
-    async function startSession() {
+    async function startSession(triggerBtn) {
       if (busy) return;
       const chunk = api.getChunk ? api.getChunk() : null;
       if (!chunk) return;
-      busy = true;
-      hideResult();
-      clearError();
-      clearPhaseTimer();
-      revokeMineUrl();
-      recordedBlob = null;
-      recordedChunks = [];
+      const run = async () => {
+        busy = true;
+        hideResult();
+        clearError();
+        clearPhaseTimer();
+        revokeMineUrl();
+        recordedBlob = null;
+        recordedChunks = [];
+        try {
+          await ensureMic();
+          openOverlay();
+          if (typeof api.onStart === "function") {
+            try {
+              api.onStart();
+            } catch (_) {}
+          }
+          runCountdown();
+        } catch (err) {
+          busy = false;
+          stopTracks();
+          showError(
+            err.message ||
+              t("speak_no_mic", "Microphone permission is required for speaking practice.")
+          );
+          throw err;
+        }
+      };
       try {
-        await ensureMic();
-        openOverlay();
-        runCountdown();
-      } catch (err) {
-        busy = false;
-        stopTracks();
-        showError(
-          err.message ||
-            t("speak_no_mic", "Microphone permission is required for speaking practice.")
-        );
+        if (window.MvBusy && triggerBtn) {
+          await window.MvBusy.run(triggerBtn, run, {
+            label: t("loading", "Loading…"),
+          });
+        } else {
+          await run();
+        }
+      } catch (_) {
+        /* error already shown */
       }
     }
 
@@ -641,27 +706,39 @@
     if (els.startBtn) {
       els.startBtn.addEventListener("click", (event) => {
         event.preventDefault();
-        startSession();
+        startSession(els.startBtn);
       });
     }
     if (els.endBtn) {
       els.endBtn.addEventListener("click", (event) => {
         event.preventDefault();
         if (!busy) return;
+        if (window.MvBusy && window.MvBusy.isBusy(els.endBtn)) return;
         finishSession();
       });
     }
     if (els.retryBtn) {
       els.retryBtn.addEventListener("click", (event) => {
         event.preventDefault();
-        startSession();
+        startSession(els.retryBtn);
       });
     }
     if (els.shadowBtn) {
       els.shadowBtn.addEventListener("click", async (event) => {
         event.preventDefault();
-        if (api.playModel) await api.playModel({ slow: false });
-        window.setTimeout(() => startSession(), 350);
+        if (window.MvBusy && window.MvBusy.isBusy(els.shadowBtn)) return;
+        if (window.MvBusy) {
+          window.MvBusy.lock(els.shadowBtn, { label: t("loading", "Loading…") });
+        }
+        try {
+          if (api.playModel) await api.playModel({ slow: false });
+          window.setTimeout(() => {
+            if (window.MvBusy) window.MvBusy.unlock(els.shadowBtn);
+            startSession(els.startBtn || els.retryBtn || els.shadowBtn);
+          }, 350);
+        } catch (_) {
+          if (window.MvBusy) window.MvBusy.unlock(els.shadowBtn);
+        }
       });
     }
     if (els.playMine) {
@@ -701,9 +778,27 @@
         if (!item) return;
         if (item.status === "ok" && !item.forcedOk) return;
         selectToken(index);
-        if (api.playExpectedWord) api.playExpectedWord(item);
       });
     }
+    if (els.helpBtn) {
+      els.helpBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        openHelpModal();
+      });
+    }
+    if (els.helpModal) {
+      els.helpModal.querySelectorAll("[data-speak-help-close]").forEach((el) => {
+        el.addEventListener("click", (event) => {
+          event.preventDefault();
+          closeHelpModal();
+        });
+      });
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!els.helpModal || els.helpModal.hasAttribute("hidden")) return;
+      closeHelpModal();
+    });
     if (els.thresholdInput) {
       els.thresholdInput.addEventListener("input", () => {
         const value = Number(els.thresholdInput.value);

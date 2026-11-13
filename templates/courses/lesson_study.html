@@ -101,13 +101,38 @@
           class="hidden"
         ></audio>
 
+        <div class="study-mode-tabs study-mode-tabs--top" role="tablist" aria-label="{{ ui.study_answer_modes }}">
+          <button
+            type="button"
+            class="study-mode-tab is-active"
+            role="tab"
+            id="study-mode-writing"
+            data-study-mode-tab="writing"
+            aria-selected="true"
+            aria-controls="study-type-input"
+          >
+            {{ ui.study_mode_writing }}
+          </button>
+          <button
+            type="button"
+            class="study-mode-tab"
+            role="tab"
+            id="study-mode-speaking"
+            data-study-mode-tab="speaking"
+            aria-selected="false"
+            aria-controls="study-type-input"
+          >
+            {{ ui.study_mode_speaking }}
+          </button>
+        </div>
+
         <div class="study-timer-row">
           <div>
             <p class="study-timer-label">{{ ui.timer }}</p>
             <p id="study-timer" class="study-timer-value">0.00s</p>
           </div>
           <div class="study-timer-meta">
-            <p id="study-best-record">{{ ui.best_label }}: —</p>
+            <p id="study-best-record">{{ ui.best_label_writing }}: —</p>
             <p id="study-timer-status">{{ ui.waiting_play_meaning }}</p>
           </div>
           <div class="study-card-tools">
@@ -183,31 +208,6 @@
           data-hint-writing="{{ ui.type_hint }}"
           data-hint-speaking="{{ ui.speak_hint }}"
         >
-          <div class="study-mode-tabs" role="tablist" aria-label="{{ ui.study_answer_modes }}">
-            <button
-              type="button"
-              class="study-mode-tab is-active"
-              role="tab"
-              id="study-mode-writing"
-              data-study-mode-tab="writing"
-              aria-selected="true"
-              aria-controls="study-type-input"
-            >
-              {{ ui.study_mode_writing }}
-            </button>
-            <button
-              type="button"
-              class="study-mode-tab"
-              role="tab"
-              id="study-mode-speaking"
-              data-study-mode-tab="speaking"
-              aria-selected="false"
-              aria-controls="study-type-input"
-            >
-              {{ ui.study_mode_speaking }}
-            </button>
-          </div>
-
           <div class="study-type-head">
             <label class="study-type-label" id="study-type-label" for="study-type-input">{{ ui.type_what_you_hear }}</label>
           </div>
@@ -245,7 +245,16 @@
 
           <div id="study-speak-result" class="study-speak-result hidden" hidden>
             <div class="study-speak-result__head">
-              <p class="study-speak-result__title">{{ ui.speak_result_title }}</p>
+              <div class="study-speak-result__title-row">
+                <p class="study-speak-result__title">{{ ui.speak_result_title }}</p>
+                <button
+                  type="button"
+                  id="study-speak-help-btn"
+                  class="study-speak-help-btn"
+                  aria-label="{{ ui.speak_help_title }}"
+                  title="{{ ui.speak_help_title }}"
+                >?</button>
+              </div>
               <p id="study-speak-score" class="study-speak-result__score"></p>
             </div>
             <div id="study-speak-feedback" class="study-speak-feedback" dir="ltr"></div>
@@ -399,6 +408,60 @@
         <div class="study-speak-phase" data-speak-phase="loading">
           <div class="study-speak-spinner" aria-hidden="true"></div>
           <p class="study-speak-phase-hint">{{ ui.speak_transcribing }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="study-speak-help-modal"
+      class="mv-modal study-speak-help-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="study-speak-help-title"
+      hidden
+    >
+      <button type="button" class="mv-modal-backdrop" data-speak-help-close aria-label="{{ ui.close }}"></button>
+      <div class="mv-modal-panel study-speak-help-panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <div class="mv-modal-head">
+          <div class="min-w-0">
+            <h2 id="study-speak-help-title" class="text-lg font-semibold text-white">{{ ui.speak_help_title }}</h2>
+            <p class="mt-1 text-xs text-slate-500">{{ ui.speak_help_lead }}</p>
+          </div>
+          <button type="button" class="mv-btn mv-btn-ghost shrink-0" style="min-height:2.35rem" data-speak-help-close>
+            {{ ui.close }}
+          </button>
+        </div>
+        <div class="mv-modal-body study-speak-help-body">
+          <ul class="study-speak-help-list">
+            <li>
+              <span class="study-speak-help-sample is-ok">word <span aria-hidden="true">✓</span></span>
+              <span>{{ ui.speak_help_ok }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-near">word <span aria-hidden="true">~</span></span>
+              <span>{{ ui.speak_help_near }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-bad">word <span aria-hidden="true">✕</span></span>
+              <span>{{ ui.speak_help_bad }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-missing">word <span aria-hidden="true">–</span></span>
+              <span>{{ ui.speak_help_missing }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-tap">tap</span>
+              <span>{{ ui.speak_help_tap }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-action">{{ ui.speak_i_was_right }}</span>
+              <span>{{ ui.speak_help_mark_right }}</span>
+            </li>
+            <li>
+              <span class="study-speak-help-sample is-score">%</span>
+              <span>{{ ui.speak_help_score }}</span>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

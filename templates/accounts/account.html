@@ -110,7 +110,7 @@
       </section>
 
       <div class="mv-account-save">
-        <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_profile }}</button>
+        <button type="submit" class="mv-btn mv-btn-primary" data-mv-busy-label="{{ ui.saving }}">{{ ui.save_profile }}</button>
         <a href="{% url 'public_profile' user.id %}" class="mv-btn mv-btn-ghost">{{ ui.view_public_profile }}</a>
       </div>
     </form>

@@ -26,3 +26,6 @@ location /media/ {
     expires 7d;
     access_log off;
 }
+
+
+source .venv/Scripts/activate

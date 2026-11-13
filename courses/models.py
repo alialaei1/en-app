@@ -493,7 +493,16 @@ class UserChunkStudyProgress(models.Model):
         on_delete=models.CASCADE,
     )
     study_level = models.PositiveSmallIntegerField(blank=True, null=True)
-    best_type_ms = models.PositiveIntegerField(blank=True, null=True)
+    best_type_ms = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text="Best writing (typing) completion time in milliseconds.",
+    )
+    best_speak_ms = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text="Best speaking completion time in milliseconds.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -519,21 +528,26 @@ class UserChunkStudyProgress(models.Model):
             self.study_level = level
         self.save(update_fields=["study_level", "updated_at"])
 
-    def record_type_time(self, time_ms: int, *, text: str = "") -> dict:
+    def record_type_time(self, time_ms: int, *, text: str = "", mode: str = "writing") -> dict:
         from .services.study_scoring import suggest_study_level
 
+        mode_key = "speaking" if str(mode).strip().lower() == "speaking" else "writing"
+        field = "best_speak_ms" if mode_key == "speaking" else "best_type_ms"
         time_ms = max(1, int(time_ms))
-        previous_best = self.best_type_ms
+        previous_best = getattr(self, field)
         is_new_best = previous_best is None or time_ms < previous_best
         if is_new_best:
-            self.best_type_ms = time_ms
-            self.save(update_fields=["best_type_ms", "updated_at"])
+            setattr(self, field, time_ms)
+            self.save(update_fields=[field, "updated_at"])
 
         suggested = suggest_study_level(text or "", time_ms)
         return {
+            "mode": mode_key,
             "time_ms": time_ms,
             "previous_best_ms": previous_best,
+            "best_ms": getattr(self, field),
             "best_type_ms": self.best_type_ms,
+            "best_speak_ms": self.best_speak_ms,
             "is_new_best": is_new_best,
             "suggested_level": suggested,
         }

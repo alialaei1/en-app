@@ -15,6 +15,7 @@
   function openModal(message, action) {
     pending = action;
     lastFocus = document.activeElement;
+    if (window.MvBusy && yesBtn) window.MvBusy.unlock(yesBtn);
     if (messageEl) messageEl.textContent = message || "";
     if (titleEl) {
       titleEl.textContent = UI.confirm_title || "Please confirm";
@@ -43,10 +44,18 @@
 
   function proceed() {
     const action = pending;
+    if (yesBtn && window.MvBusy) {
+      window.MvBusy.lock(yesBtn, { label: UI.working || "Working…" });
+    }
     closeModal();
     if (!action) return;
     if (action.kind === "form" && action.form) {
       action.form.dataset.llConfirmed = "1";
+      if (window.MvBusy) {
+        window.MvBusy.lockForm(action.form, action.submitter || null, {
+          label: UI.working || "Working…",
+        });
+      }
       if (typeof action.form.requestSubmit === "function") {
         action.form.requestSubmit(action.submitter || undefined);
       } else if (action.submitter) {
@@ -58,6 +67,7 @@
     }
     if (action.kind === "promise" && typeof action.resolve === "function") {
       action.resolve(true);
+      if (yesBtn && window.MvBusy) window.MvBusy.unlock(yesBtn);
     }
   }
 

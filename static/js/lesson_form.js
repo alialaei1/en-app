@@ -259,7 +259,14 @@
         return false;
       }
 
-      if (submitBtn) submitBtn.disabled = true;
+      if (window.MvBusy && submitBtn) {
+        window.MvBusy.lock(submitBtn, {
+          label: "Saving…",
+          keepLocked: true,
+        });
+      } else if (submitBtn) {
+        submitBtn.disabled = true;
+      }
       showOverlay("Please wait — do not click anything", "Saving lesson…", 3);
 
       try {
@@ -289,7 +296,11 @@
         window.location.href = payload.redirect;
       } catch (err) {
         hideOverlay();
-        if (submitBtn) submitBtn.disabled = false;
+        if (window.MvBusy && submitBtn) {
+          window.MvBusy.unlock(submitBtn);
+        } else if (submitBtn) {
+          submitBtn.disabled = false;
+        }
         if (formError) {
           formError.textContent = err.message || "Something went wrong.";
           formError.classList.remove("hidden");

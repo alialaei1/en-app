@@ -10,6 +10,7 @@ from .audio_split import _maybe_allow_insecure_model_download, resolve_whisper_m
 from .media import require_ffmpeg
 
 _MODEL = None
+_MODEL_NAME = None
 
 
 class SpeakTranscribeError(RuntimeError):
@@ -22,8 +23,9 @@ class SpeakTranscribeError(RuntimeError):
 
 
 def _get_model():
-    global _MODEL
-    if _MODEL is not None:
+    global _MODEL, _MODEL_NAME
+    selected = resolve_whisper_model(speak=True)
+    if _MODEL is not None and _MODEL_NAME == selected:
         return _MODEL
     try:
         _maybe_allow_insecure_model_download()
@@ -35,11 +37,12 @@ def _get_model():
         ) from exc
 
     try:
-        _MODEL = stable_whisper.load_model(resolve_whisper_model())
+        _MODEL = stable_whisper.load_model(selected)
+        _MODEL_NAME = selected
     except Exception as exc:  # noqa: BLE001
         raise SpeakTranscribeError(
             "whisper_model",
-            f"Could not load Whisper model: {exc}",
+            f"Could not load Whisper model '{selected}': {exc}",
         ) from exc
     return _MODEL
 

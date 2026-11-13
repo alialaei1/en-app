@@ -93,7 +93,14 @@ class UserLessonStudySettingsAdmin(admin.ModelAdmin):
 
 @admin.register(UserChunkStudyProgress)
 class UserChunkStudyProgressAdmin(admin.ModelAdmin):
-    list_display = ("user", "chunk", "study_level", "best_type_ms", "updated_at")
+    list_display = (
+        "user",
+        "chunk",
+        "study_level",
+        "best_type_ms",
+        "best_speak_ms",
+        "updated_at",
+    )
     list_filter = ("study_level",)
     search_fields = ("user__email", "chunk__text")
     raw_id_fields = ("user", "chunk")

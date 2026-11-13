@@ -26,6 +26,10 @@ DEFAULTS = {
     "media_max_seconds": 600,  # 10 minutes
     "document_max_mb": 1,
     "image_max_mb": 5,
+    # Structure creation caps (superuser-editable per user)
+    "max_courses": 5,
+    "max_sections_per_course": 70,
+    "max_lessons_per_section": 5,
 }
 
 
@@ -48,6 +52,9 @@ class LimitsSnapshot:
     media_max_seconds: int
     document_max_mb: int
     image_max_mb: int
+    max_courses: int
+    max_sections_per_course: int
+    max_lessons_per_section: int
 
     @property
     def media_max_bytes(self) -> int:
@@ -83,6 +90,9 @@ class LimitsSnapshot:
             "media_max_bytes": self.media_max_bytes,
             "document_max_bytes": self.document_max_bytes,
             "image_max_bytes": self.image_max_bytes,
+            "max_courses": self.max_courses,
+            "max_sections_per_course": self.max_sections_per_course,
+            "max_lessons_per_section": self.max_lessons_per_section,
         }
 
 
@@ -121,7 +131,35 @@ def get_limits_for_user(user) -> LimitsSnapshot:
         media_max_seconds=limits.media_max_seconds,
         document_max_mb=limits.document_max_mb,
         image_max_mb=limits.image_max_mb,
+        max_courses=limits.max_courses,
+        max_sections_per_course=limits.max_sections_per_course,
+        max_lessons_per_section=limits.max_lessons_per_section,
     )
+
+
+def creation_counts_for_course_owner(user) -> int:
+    from courses.models import Course
+
+    if user is None or not getattr(user, "is_authenticated", False):
+        return 0
+    return Course.objects.filter(owner_id=user.pk).count()
+
+
+def can_create_course(user) -> bool:
+    limits = get_limits_for_user(user)
+    return creation_counts_for_course_owner(user) < max(0, int(limits.max_courses))
+
+
+def can_create_section(user, course) -> bool:
+    limits = get_limits_for_user(user)
+    current = course.sections.count() if course is not None else 0
+    return current < max(0, int(limits.max_sections_per_course))
+
+
+def can_create_lesson(user, section) -> bool:
+    limits = get_limits_for_user(user)
+    current = section.lessons.count() if section is not None else 0
+    return current < max(0, int(limits.max_lessons_per_section))
 
 
 def apply_char_limit(field, max_chars: int, *, model_cap: int | None = None) -> None:

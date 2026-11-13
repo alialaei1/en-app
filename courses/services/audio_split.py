@@ -32,14 +32,26 @@ def _maybe_allow_insecure_model_download() -> None:
     ssl._create_default_https_context = ssl._create_unverified_context  # noqa: S323
 
 
-def resolve_whisper_model(model_name: str | None = None) -> str:
+def resolve_whisper_model(model_name: str | None = None, *, speak: bool = False) -> str:
     if model_name:
         return model_name
     try:
         from django.conf import settings
 
+        if speak:
+            return getattr(
+                settings,
+                "SPEAK_WHISPER_MODEL",
+                getattr(settings, "WHISPER_MODEL", "small.en"),
+            )
         return getattr(settings, "WHISPER_MODEL", "small.en")
     except Exception:  # noqa: BLE001
+        if speak:
+            return (
+                os.getenv("SPEAK_WHISPER_MODEL", "").strip()
+                or os.getenv("WHISPER_MODEL", "small.en").strip()
+                or "small.en"
+            )
         return os.getenv("WHISPER_MODEL", "small.en").strip() or "small.en"
 
 

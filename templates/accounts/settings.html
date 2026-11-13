@@ -43,7 +43,7 @@
       </section>
 
       <div class="mv-account-save">
-        <button type="submit" class="mv-btn mv-btn-primary">{{ ui.save_settings }}</button>
+        <button type="submit" class="mv-btn mv-btn-primary" data-mv-busy-label="{{ ui.saving }}">{{ ui.save_settings }}</button>
         <a href="{% url 'account' %}" class="mv-btn mv-btn-ghost">{{ ui.profile }}</a>
       </div>
     </form>

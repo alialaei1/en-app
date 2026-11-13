@@ -193,6 +193,11 @@ _WHISPER_MODELS = {
 }
 _whisper_model = os.getenv("WHISPER_MODEL", "small.en").strip()
 WHISPER_MODEL = _whisper_model if _whisper_model in _WHISPER_MODELS else "small.en"
+# Speaking STT can use a different Whisper size than lesson alignment.
+_speak_whisper_model = os.getenv("SPEAK_WHISPER_MODEL", "").strip() or WHISPER_MODEL
+SPEAK_WHISPER_MODEL = (
+    _speak_whisper_model if _speak_whisper_model in _WHISPER_MODELS else WHISPER_MODEL
+)
 WHISPER_INSECURE_DOWNLOAD = _bool(os.getenv("WHISPER_INSECURE_DOWNLOAD"), False)
 
 # Default primary key field type

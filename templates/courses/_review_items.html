@@ -1,0 +1,21 @@
+{% for review in reviews %}
+  <article class="rounded-2xl border border-slate-800 bg-slate-950/30 px-4 py-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="font-medium text-slate-100" dir="ltr">
+          {% firstof review.user.profile.public_name review.user.email review.user.username %}
+        </p>
+        <p class="mt-1 text-sm text-amber-200">
+          {% for i in "12345" %}{% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}{% endfor %}
+          <span class="ms-1 text-slate-400">{{ review.rating }}/5</span>
+        </p>
+      </div>
+      <p class="text-xs text-slate-500">{{ review.updated_at|date:"Y-m-d" }}</p>
+    </div>
+    {% if review.comment %}
+      <p class="mt-3 text-sm leading-6 text-slate-300" dir="auto">{{ review.comment }}</p>
+    {% endif %}
+  </article>
+{% empty %}
+  <p class="text-sm text-slate-500">{{ ui.no_reviews_yet }}</p>
+{% endfor %}

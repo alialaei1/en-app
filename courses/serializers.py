@@ -10,7 +10,7 @@ def highlight_payload(highlight) -> dict:
     }
 
 
-def chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
+def chunk_payload(chunk, *, study_level=None, best_type_ms=None, best_speak_ms=None) -> dict:
     highlights = [highlight_payload(item) for item in chunk.highlights.all()]
     video_url = chunk.video.url if getattr(chunk, "video", None) and chunk.video else ""
     audio_url = chunk.audio.url if chunk.audio else ""
@@ -24,6 +24,7 @@ def chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
         "color_spans": list(chunk.color_spans or []),
         "study_level": study_level,
         "best_type_ms": best_type_ms,
+        "best_speak_ms": best_speak_ms,
         "word_timing_count": len(chunk.word_timings or []),
         "video_url": video_url,
         "audio_url": audio_url or video_url,
@@ -33,9 +34,12 @@ def chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
     }
 
 
-def study_chunk_payload(chunk, *, study_level=None, best_type_ms=None) -> dict:
+def study_chunk_payload(chunk, *, study_level=None, best_type_ms=None, best_speak_ms=None) -> dict:
     data = chunk_payload(
-        chunk, study_level=study_level, best_type_ms=best_type_ms
+        chunk,
+        study_level=study_level,
+        best_type_ms=best_type_ms,
+        best_speak_ms=best_speak_ms,
     )
     data["has_sentence_meaning"] = bool((chunk.sentence_meaning or "").strip())
     data["has_audio"] = bool(data.get("media_url"))
@@ -78,6 +82,7 @@ def study_lesson_payload(
                 chunk,
                 study_level=progress.study_level if progress else None,
                 best_type_ms=progress.best_type_ms if progress else None,
+                best_speak_ms=progress.best_speak_ms if progress else None,
             )
         )
 

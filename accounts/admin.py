@@ -51,6 +51,16 @@ class UserLimitsInline(admin.StackedInline):
                 )
             },
         ),
+        (
+            "Creation limits",
+            {
+                "fields": (
+                    "max_courses",
+                    "max_sections_per_course",
+                    "max_lessons_per_section",
+                )
+            },
+        ),
     )
 
 
@@ -72,6 +82,9 @@ class ProfileAdmin(admin.ModelAdmin):
 class UserLimitsAdmin(admin.ModelAdmin):
     list_display = (
         "user",
+        "max_courses",
+        "max_sections_per_course",
+        "max_lessons_per_section",
         "media_max_seconds",
         "media_max_mb",
         "document_max_mb",

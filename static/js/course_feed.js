@@ -28,10 +28,33 @@
     let query = root.dataset.query || "";
     let abortController = null;
     let observer = null;
+    let scrollFallbackBound = false;
+
+    function ensureLoadingMarkup() {
+      if (!loadingEl) return;
+      if (loadingEl.querySelector(".mv-busy-spin")) return;
+      const label = loadingEl.textContent || t("loading_more", "Loading more…");
+      loadingEl.innerHTML =
+        '<span class="mv-busy-spin" aria-hidden="true"></span>' +
+        '<span class="mv-feed-loading-text">' +
+        label +
+        "</span>";
+    }
 
     function setLoading(on) {
       loading = on;
-      if (loadingEl) loadingEl.hidden = !on;
+      ensureLoadingMarkup();
+      if (loadingEl) {
+        if (on) {
+          delete loadingEl.dataset.error;
+          const text = loadingEl.querySelector(".mv-feed-loading-text");
+          if (text) text.textContent = t("loading_more", "Loading more…");
+          loadingEl.hidden = false;
+        } else if (loadingEl.dataset.error !== "1") {
+          loadingEl.hidden = true;
+        }
+        loadingEl.setAttribute("aria-busy", on ? "true" : "false");
+      }
       root.classList.toggle("is-loading", on);
     }
 
@@ -147,6 +170,23 @@
       }
     }
 
+    function sentinelInView() {
+      if (!sentinel || sentinel.hidden) return false;
+      const rect = sentinel.getBoundingClientRect();
+      const viewH =
+        (window.visualViewport && window.visualViewport.height) ||
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        0;
+      return rect.top < viewH + 420;
+    }
+
+    function maybeLoadMore() {
+      if (loading || !hasMore) return;
+      if (!sentinelInView()) return;
+      loadMore();
+    }
+
     function fetchPage(nextPage, opts) {
       const replace = !opts || opts.replace !== false;
       const push = opts && opts.push;
@@ -196,13 +236,27 @@
         })
         .catch(function (err) {
           if (err && err.name === "AbortError") return;
+          ensureLoadingMarkup();
           if (loadingEl) {
+            const text = loadingEl.querySelector(".mv-feed-loading-text");
+            if (text) {
+              text.textContent = t(
+                "feed_load_failed",
+                "Could not load courses. Try again."
+              );
+            }
+            loadingEl.dataset.error = "1";
             loadingEl.hidden = false;
-            loadingEl.textContent = t("feed_load_failed", "Could not load courses. Try again.");
           }
         })
         .finally(function () {
           setLoading(false);
+          // If the first page is short (iOS tall screens), keep filling until sentinel leaves view.
+          if (hasMore && !(loadingEl && loadingEl.dataset.error === "1")) {
+            window.requestAnimationFrame(function () {
+              window.setTimeout(maybeLoadMore, 50);
+            });
+          }
         });
     }
 
@@ -215,7 +269,7 @@
       page = 1;
       hasMore = true;
       setSentinel(false);
-      fetchPage(1, {
+      return fetchPage(1, {
         replace: true,
         push: true,
         filter: opts.filter,
@@ -228,7 +282,14 @@
         event.preventDefault();
         const key = chip.getAttribute("data-course-feed-filter") || defaultFilter;
         if (key === activeFilter && !loading) return;
-        resetAndLoad({ filter: key, query: query });
+        const run = function () {
+          return resetAndLoad({ filter: key, query: query });
+        };
+        if (window.MvBusy) {
+          window.MvBusy.run(chip, run, { label: t("loading", "Loading…") });
+        } else {
+          run();
+        }
       });
     });
 
@@ -237,7 +298,17 @@
         event.preventDefault();
         const qInput = searchForm.querySelector('input[name="q"]');
         const nextQuery = qInput ? String(qInput.value || "").trim() : "";
-        resetAndLoad({ filter: activeFilter, query: nextQuery });
+        const submitter =
+          event.submitter ||
+          searchForm.querySelector('button[type="submit"], input[type="submit"]');
+        const run = function () {
+          return resetAndLoad({ filter: activeFilter, query: nextQuery });
+        };
+        if (window.MvBusy && submitter) {
+          window.MvBusy.run(submitter, run, { label: t("loading", "Loading…") });
+        } else {
+          run();
+        }
       });
     }
 
@@ -246,7 +317,14 @@
         event.preventDefault();
         const qInput = searchForm ? searchForm.querySelector('input[name="q"]') : null;
         if (qInput) qInput.value = "";
-        resetAndLoad({ filter: activeFilter, query: "" });
+        const run = function () {
+          return resetAndLoad({ filter: activeFilter, query: "" });
+        };
+        if (window.MvBusy) {
+          window.MvBusy.run(clearLink, run, { label: t("loading", "Loading…") });
+        } else {
+          run();
+        }
       });
     }
 
@@ -257,19 +335,28 @@
             if (entry.isIntersecting) loadMore();
           });
         },
-        { root: null, rootMargin: "320px 0px", threshold: 0 }
+        {
+          // Large preload margin helps iOS/Android momentum scrolling.
+          root: null,
+          rootMargin: "480px 0px 480px 0px",
+          threshold: 0,
+        }
       );
       if (hasMore) observer.observe(sentinel);
-    } else if (sentinel) {
-      window.addEventListener(
-        "scroll",
-        function () {
-          if (!hasMore || loading || sentinel.hidden) return;
-          const rect = sentinel.getBoundingClientRect();
-          if (rect.top < window.innerHeight + 320) loadMore();
-        },
-        { passive: true }
-      );
+    }
+
+    // Fallback / supplement for older WebViews and iOS rubber-band scroll quirks.
+    if (sentinel && !scrollFallbackBound) {
+      scrollFallbackBound = true;
+      const onScrollCheck = function () {
+        maybeLoadMore();
+      };
+      window.addEventListener("scroll", onScrollCheck, { passive: true });
+      window.addEventListener("touchend", onScrollCheck, { passive: true });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", onScrollCheck);
+        window.visualViewport.addEventListener("scroll", onScrollCheck);
+      }
     }
 
     window.addEventListener("popstate", function () {
@@ -287,9 +374,11 @@
       });
     });
 
+    ensureLoadingMarkup();
     syncFilterChips();
     syncClearLink();
     setSentinel(hasMore);
+    maybeLoadMore();
   }
 
   function init() {
