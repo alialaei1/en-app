@@ -33,6 +33,19 @@
     return Boolean(el && el.dataset && el.dataset.mvBusy === "1");
   }
 
+  function prefersOverlayOnly(el) {
+    if (!el) return false;
+    return (
+      el.classList.contains("mv-nav-item") ||
+      el.classList.contains("mv-desk-link") ||
+      el.classList.contains("mv-icon-btn") ||
+      el.classList.contains("mv-course-cover") ||
+      el.classList.contains("mv-course-cover-square") ||
+      el.classList.contains("mv-course-thumb") ||
+      el.closest(".mv-course-tile, .mv-course-row, .mv-explore-row") != null
+    );
+  }
+
   function lock(el, opts) {
     opts = opts || {};
     if (!el) return el;
@@ -51,6 +64,15 @@
     }
     el.setAttribute("aria-busy", "true");
     el.classList.add("is-busy");
+
+    var overlayOnly =
+      opts.overlayOnly === true ||
+      el.getAttribute("data-mv-busy-overlay") === "1" ||
+      prefersOverlayOnly(el);
+    if (overlayOnly) {
+      el.classList.add("is-busy-overlay");
+      return el;
+    }
 
     var label = opts.label != null ? opts.label : defaultLabel(el);
     var keepLabel = opts.keepLabel === true || el.getAttribute("data-mv-busy-keep-label") === "1";
@@ -87,9 +109,8 @@
     if (el.tagName === "INPUT") {
       if (el.dataset.mvBusyValue != null) el.value = el.dataset.mvBusyValue;
       delete el.dataset.mvBusyValue;
-    } else {
-      var html = el.dataset.mvBusyHtml;
-      if (html != null) el.innerHTML = html;
+    } else if (el.dataset.mvBusyHtml != null) {
+      el.innerHTML = el.dataset.mvBusyHtml;
       delete el.dataset.mvBusyHtml;
     }
     if ("disabled" in el) {
@@ -101,6 +122,7 @@
     }
     el.removeAttribute("aria-busy");
     el.classList.remove("is-busy");
+    el.classList.remove("is-busy-overlay");
     delete el.dataset.mvBusy;
     delete el.dataset.mvBusyWasDisabled;
     delete el.dataset.mvBusyHref;
@@ -113,6 +135,7 @@
       .forEach(function (el) {
         unlock(el);
       });
+    hidePageBusy();
   }
 
   function lockForm(form, submitter, opts) {
@@ -152,6 +175,112 @@
       );
   }
 
+  function ensurePageBusyEl() {
+    var el = document.getElementById("mv-page-busy");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "mv-page-busy";
+    el.className = "mv-page-busy";
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML =
+      '<div class="mv-page-busy__bar" aria-hidden="true"></div>' +
+      '<div class="mv-page-busy__card" role="status" aria-live="polite">' +
+      '<span class="mv-busy-spin" aria-hidden="true"></span>' +
+      '<span class="mv-page-busy__text">' +
+      escapeHtml(t("loading", "Loading…")) +
+      "</span>" +
+      "</div>";
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function showPageBusy(sourceEl) {
+    var el = ensurePageBusyEl();
+    var text = el.querySelector(".mv-page-busy__text");
+    if (text) text.textContent = t("loading", "Loading…");
+    el.hidden = false;
+    el.setAttribute("aria-hidden", "false");
+    document.documentElement.classList.add("is-page-busy");
+    document.body.classList.add("is-page-busy");
+    if (sourceEl) {
+      sourceEl.classList.add("is-nav-source");
+      var card = sourceEl.closest(
+        ".mv-course-tile, .mv-course-row, .mv-explore-row, .mv-card-interactive"
+      );
+      if (card) card.classList.add("is-navigating");
+    }
+  }
+
+  function hidePageBusy() {
+    var el = document.getElementById("mv-page-busy");
+    if (el) {
+      el.hidden = true;
+      el.setAttribute("aria-hidden", "true");
+    }
+    document.documentElement.classList.remove("is-page-busy");
+    document.body.classList.remove("is-page-busy");
+    document.querySelectorAll(".is-nav-source").forEach(function (node) {
+      node.classList.remove("is-nav-source");
+    });
+    document.querySelectorAll(".is-navigating").forEach(function (node) {
+      node.classList.remove("is-navigating");
+    });
+  }
+
+  function isIgnoredNavLink(link) {
+    if (!link) return true;
+    if (link.hasAttribute("data-mv-busy-skip")) return true;
+    if (link.hasAttribute("data-course-feed-filter")) return true;
+    if (link.hasAttribute("data-course-feed-clear")) return true;
+    if (link.closest("[data-chip-scroller]")) return true;
+    if (link.getAttribute("target") === "_blank") return true;
+    if (link.hasAttribute("download")) return true;
+    var href = link.getAttribute("href") || "";
+    if (!href || href === "#" || href.indexOf("javascript:") === 0) return true;
+    return false;
+  }
+
+  function isSamePageNavigation(link) {
+    try {
+      var url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin) return true;
+      return (
+        url.pathname === window.location.pathname &&
+        url.search === window.location.search &&
+        (!url.hash || url.hash === window.location.hash)
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isAppNavigationLink(link) {
+    if (!link || link.tagName !== "A") return false;
+    if (isIgnoredNavLink(link)) return false;
+    return Boolean(
+      link.classList.contains("mv-nav-item") ||
+        link.classList.contains("mv-desk-link") ||
+        link.classList.contains("mv-icon-btn") ||
+        link.classList.contains("mv-btn") ||
+        link.classList.contains("mv-course-cover") ||
+        link.classList.contains("mv-course-cover-square") ||
+        link.classList.contains("mv-course-thumb") ||
+        link.hasAttribute("data-mv-busy") ||
+        link.hasAttribute("data-mv-nav") ||
+        link.closest(".mv-course-tile, .mv-course-row, .mv-explore-row, .mv-card-interactive")
+    );
+  }
+
+  function beginNavigation(link) {
+    if (!link || isSamePageNavigation(link)) return;
+    showPageBusy(link);
+    lock(link, {
+      overlayOnly: prefersOverlayOnly(link),
+      label: link.getAttribute("data-mv-busy-label") || t("loading", "Loading…"),
+    });
+  }
+
   window.MvBusy = {
     lock: lock,
     unlock: unlock,
@@ -159,6 +288,9 @@
     lockForm: lockForm,
     run: run,
     isBusy: isBusy,
+    showPageBusy: showPageBusy,
+    hidePageBusy: hidePageBusy,
+    beginNavigation: beginNavigation,
   };
 
   // Native form posts (login, enroll, delete, …): lock submit controls.
@@ -168,9 +300,9 @@
       var form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
       if (form.hasAttribute("data-mv-busy-skip")) return;
-      // Confirm modal may cancel in capture; if we are here, submit proceeds.
       if (event.defaultPrevented) return;
       var submitter = event.submitter || null;
+      showPageBusy(submitter || form);
       lockForm(form, submitter, {
         label:
           (submitter && submitter.getAttribute("data-mv-busy-label")) ||
@@ -181,24 +313,16 @@
     false
   );
 
-  // Primary action links (Study, Open, …): show busy until navigation.
+  // App navigation + course cards + primary action links.
   document.addEventListener(
     "click",
     function (event) {
       if (event.defaultPrevented) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       if (event.button != null && event.button !== 0) return;
-      var link = event.target.closest(
-        "a.mv-btn[href], a[data-mv-busy][href]"
-      );
-      if (!link) return;
-      if (link.hasAttribute("data-mv-busy-skip")) return;
-      if (link.getAttribute("target") === "_blank") return;
-      if (link.hasAttribute("download")) return;
-      if (link.getAttribute("href") === "#" || link.getAttribute("href") === "") return;
-      lock(link, {
-        label: link.getAttribute("data-mv-busy-label") || t("loading", "Loading…"),
-      });
+      var link = event.target.closest("a[href]");
+      if (!isAppNavigationLink(link)) return;
+      beginNavigation(link);
     },
     true
   );
@@ -207,7 +331,9 @@
   document.addEventListener(
     "click",
     function (event) {
-      var btn = event.target.closest("button[data-mv-busy='click'], [role='button'][data-mv-busy='click']");
+      var btn = event.target.closest(
+        "button[data-mv-busy='click'], [role='button'][data-mv-busy='click']"
+      );
       if (!btn) return;
       if (event.defaultPrevented) return;
       lock(btn);
@@ -221,5 +347,14 @@
       form.classList.remove("is-busy-form");
       form.removeAttribute("aria-busy");
     });
+  });
+
+  window.addEventListener("pagehide", function () {
+    // Keep overlay visible while leaving; pageshow clears it if user returns via bfcache.
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    ensurePageBusyEl();
+    hidePageBusy();
   });
 })();
