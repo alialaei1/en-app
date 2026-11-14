@@ -351,6 +351,16 @@
     }
   }
 
+  function isPlainMeaningPopOpen(start, end) {
+    const key = `${start}:${end}`;
+    if (activePlainWordKey === key) return true;
+    if (speakSelectedIndex < 0) return false;
+    const item = speakReviewItems[speakSelectedIndex];
+    return Boolean(
+      item && Number(item.start) === Number(start) && Number(item.end) === Number(end)
+    );
+  }
+
   async function ensurePlainWordMeaning(start, end) {
     const chunk = currentChunk();
     if (!chunk) return;
@@ -358,14 +368,14 @@
     const cacheKey = `plain:${chunk.id}:${key}`;
     const cached = getPlainWordMeaning(chunk, start, end);
     if (cached) {
-      if (activePlainWordKey === key) patchOpenMeaningSlot({ meaning: cached });
+      if (isPlainMeaningPopOpen(start, end)) patchOpenMeaningSlot({ meaning: cached });
       return;
     }
     if (translateFailedKeys.has(cacheKey)) {
-      patchOpenMeaningSlot({ error: true });
+      if (isPlainMeaningPopOpen(start, end)) patchOpenMeaningSlot({ error: true });
       return;
     }
-    patchOpenMeaningSlot({ loading: true });
+    if (isPlainMeaningPopOpen(start, end)) patchOpenMeaningSlot({ loading: true });
     try {
       const text = (chunk.text || "").slice(start, end);
       const payload = await requestTranslateWord(
@@ -390,13 +400,30 @@
       // If server filled an existing highlight meaning, keep local highlight data
       // in sync — but never convert this plain word into a highlight in the UI.
       if (payload.highlight) upsertChunkHighlight(chunk, payload.highlight);
-      if (activePlainWordKey === key) patchOpenMeaningSlot({ meaning });
+      if (isPlainMeaningPopOpen(start, end)) patchOpenMeaningSlot({ meaning });
     } catch (err) {
       const permanent =
         err && (err.code === "translate_not_found" || err.code === "translate_invalid");
       if (permanent) translateFailedKeys.add(cacheKey);
-      if (activePlainWordKey === key) patchOpenMeaningSlot({ error: true });
+      if (isPlainMeaningPopOpen(start, end)) patchOpenMeaningSlot({ error: true });
     }
+  }
+
+  function ensureSpeakReviewMeaning() {
+    if (speakSelectedIndex < 0) return;
+    const item = speakReviewItems[speakSelectedIndex];
+    if (!item) return;
+    const chunk = currentChunk();
+    const highlight = findHighlightCoveringRange(
+      item.start,
+      item.end,
+      (chunk && chunk.highlights) || []
+    );
+    if (highlight) {
+      if (!(highlight.meaning || "").trim()) ensureHighlightMeaning(highlight);
+      return;
+    }
+    ensurePlainWordMeaning(item.start, item.end);
   }
 
   async function ensureSentenceMeaning(chunk) {
@@ -2468,9 +2495,14 @@
         : `<button type="button" class="hl-play" disabled title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>`;
 
     if (!highlight) {
+      const plainMeaning =
+        item && Number.isFinite(Number(item.start)) && Number.isFinite(Number(item.end))
+          ? getPlainWordMeaning(currentChunk(), item.start, item.end)
+          : "";
       return (
         heardHtml +
-        `<span class="study-hl-actions">${playBtn}</span>`
+        `<span class="study-hl-actions">${playBtn}</span>` +
+        meaningSlotHtml(plainMeaning)
       );
     }
 
@@ -3290,6 +3322,7 @@
           activeHighlightId = null;
         }
         renderCardText();
+        ensureSpeakReviewMeaning();
         // Marking words right may push score over the threshold later.
         maybeSaveSpeakingBest(score);
       },
