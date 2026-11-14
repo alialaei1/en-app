@@ -64,11 +64,16 @@
   const resultPanel = document.getElementById("study-result-panel");
   const resultMain = document.getElementById("study-result-main");
   const resultCompare = document.getElementById("study-result-compare");
-  const resultSuggest = document.getElementById("study-result-suggest");
   let resultToastTimer = 0;
+  const levelGateModal = document.getElementById("study-level-gate");
+  const levelGateLevels = document.getElementById("study-level-gate-levels");
+  const levelGateOk = document.getElementById("study-level-gate-ok");
+  const levelGateCancel = document.getElementById("study-level-gate-cancel");
+  let levelGateOpen = false;
   const playBtn = document.getElementById("study-play");
   const pauseBtn = document.getElementById("study-pause");
   const stopBtn = document.getElementById("study-stop");
+  const mediaActions = document.getElementById("study-media-actions");
   const meaningBtn = document.getElementById("study-toggle-meaning");
   const revealAllBtn = document.getElementById("study-reveal-all");
   const repeatCardBtn = document.getElementById("study-repeat-card");
@@ -121,6 +126,11 @@
   let writingCompleted = false;
   let speakingCompleted = false;
   let cardElapsedMs = 0;
+  let speakReviewItems = [];
+  let speakSelectedIndex = -1;
+  let activePlainWordKey = null;
+  const translateInFlight = new Map();
+  const translateFailedKeys = new Set();
   let studySettings = {
     playback_rate: 1,
     autoplay: false,
@@ -192,24 +202,251 @@
     return template.replace("{id}", String(chunkId));
   }
 
+  function translateWordUrl(chunkId) {
+    const template = lesson.translate_word_url_template || "";
+    return template.replace("{id}", String(chunkId));
+  }
+
+  function translateSentenceUrl(chunkId) {
+    const template = lesson.translate_sentence_url_template || "";
+    return template.replace("{id}", String(chunkId));
+  }
+
+  function meaningSlotHtml(meaning, { loading = false, error = false } = {}) {
+    if (loading) {
+      return (
+        `<span class="study-hl-meaning is-loading" dir="auto">` +
+        `<span class="study-hl-meaning__text">${escapeHtml(
+          t("meaning_loading", "Looking up meaning…")
+        )}</span>` +
+        `<span class="study-hl-meaning__spin" aria-hidden="true"></span>` +
+        `</span>`
+      );
+    }
+    if (error) {
+      return (
+        `<span class="study-hl-meaning is-empty is-error" dir="auto">${escapeHtml(
+          t("meaning_unavailable", "Meaning unavailable")
+        )}</span>`
+      );
+    }
+    const text = (meaning || "").trim();
+    if (text) {
+      return `<span class="study-hl-meaning" dir="auto">${escapeHtml(text)}</span>`;
+    }
+    return (
+      `<span class="study-hl-meaning is-empty" dir="auto">${escapeHtml(
+        t("no_meaning", "No meaning")
+      )}</span>`
+    );
+  }
+
+  function upsertChunkHighlight(chunk, highlightPayload) {
+    if (!chunk || !highlightPayload || highlightPayload.id == null) return;
+    if (!Array.isArray(chunk.highlights)) chunk.highlights = [];
+    const idx = chunk.highlights.findIndex(
+      (item) => Number(item.id) === Number(highlightPayload.id)
+    );
+    if (idx >= 0) chunk.highlights[idx] = { ...chunk.highlights[idx], ...highlightPayload };
+    else chunk.highlights.push(highlightPayload);
+    const original = allChunks.find((item) => item.id === chunk.id);
+    if (original && original !== chunk) {
+      if (!Array.isArray(original.highlights)) original.highlights = [];
+      const oidx = original.highlights.findIndex(
+        (item) => Number(item.id) === Number(highlightPayload.id)
+      );
+      if (oidx >= 0) {
+        original.highlights[oidx] = { ...original.highlights[oidx], ...highlightPayload };
+      } else {
+        original.highlights.push(highlightPayload);
+      }
+    }
+  }
+
+  function patchOpenMeaningSlot({ loading = false, error = false, meaning = "" } = {}) {
+    if (!textEl) return;
+    const wrap = textEl.querySelector(".study-hl-wrap.is-open");
+    if (!wrap) return;
+    const slot = wrap.querySelector(".study-hl-meaning");
+    if (!slot) return;
+    const html = meaningSlotHtml(meaning, { loading, error });
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    const next = tmp.firstElementChild;
+    if (next) slot.replaceWith(next);
+    window.requestAnimationFrame(positionActiveHighlightPop);
+  }
+
+  async function requestTranslateWord(chunk, body, cacheKey) {
+    if (!chunk || translateInFlight.has(cacheKey)) {
+      return translateInFlight.get(cacheKey) || null;
+    }
+    const url = translateWordUrl(chunk.id);
+    if (!url) return null;
+    const run = (async () => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrf,
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        const err = new Error(
+          payload.error || t("translate_failed", "Could not translate right now. Try again.")
+        );
+        err.code = payload.code || "translate_failed";
+        throw err;
+      }
+      return payload;
+    })();
+    translateInFlight.set(cacheKey, run);
+    try {
+      return await run;
+    } finally {
+      translateInFlight.delete(cacheKey);
+    }
+  }
+
+  async function ensureHighlightMeaning(highlight) {
+    const chunk = currentChunk();
+    if (!chunk || !highlight) return;
+    if ((highlight.meaning || "").trim()) return;
+    const cacheKey = `hl:${chunk.id}:${highlight.id}`;
+    if (translateFailedKeys.has(cacheKey)) {
+      patchOpenMeaningSlot({ error: true });
+      return;
+    }
+    patchOpenMeaningSlot({ loading: true });
+    try {
+      const payload = await requestTranslateWord(
+        chunk,
+        { highlight_id: highlight.id },
+        cacheKey
+      );
+      if (!payload) return;
+      const meaning = (payload.meaning || "").trim();
+      highlight.meaning = meaning;
+      if (payload.highlight) upsertChunkHighlight(chunk, payload.highlight);
+      if (
+        activeHighlightId != null &&
+        Number(activeHighlightId) === Number(highlight.id)
+      ) {
+        patchOpenMeaningSlot({ meaning });
+      }
+    } catch (err) {
+      const permanent =
+        err && (err.code === "translate_not_found" || err.code === "translate_invalid");
+      if (permanent) translateFailedKeys.add(cacheKey);
+      if (
+        activeHighlightId != null &&
+        Number(activeHighlightId) === Number(highlight.id)
+      ) {
+        patchOpenMeaningSlot({ error: true });
+      }
+    }
+  }
+
+  async function ensurePlainWordMeaning(start, end) {
+    const chunk = currentChunk();
+    if (!chunk) return;
+    const key = `${start}:${end}`;
+    const cacheKey = `plain:${chunk.id}:${key}`;
+    const cached = getPlainWordMeaning(chunk, start, end);
+    if (cached) {
+      if (activePlainWordKey === key) patchOpenMeaningSlot({ meaning: cached });
+      return;
+    }
+    if (translateFailedKeys.has(cacheKey)) {
+      patchOpenMeaningSlot({ error: true });
+      return;
+    }
+    patchOpenMeaningSlot({ loading: true });
+    try {
+      const text = (chunk.text || "").slice(start, end);
+      const payload = await requestTranslateWord(
+        chunk,
+        { start_char: start, end_char: end, text },
+        cacheKey
+      );
+      if (!payload) return;
+      const meaning = (payload.meaning || "").trim();
+      if (!meaning) return;
+      if (payload.word_meaning) {
+        setPlainWordMeaning(
+          chunk,
+          start,
+          end,
+          meaning,
+          payload.word_meaning
+        );
+      } else {
+        setPlainWordMeaning(chunk, start, end, meaning);
+      }
+      // If server filled an existing highlight meaning, keep local highlight data
+      // in sync — but never convert this plain word into a highlight in the UI.
+      if (payload.highlight) upsertChunkHighlight(chunk, payload.highlight);
+      if (activePlainWordKey === key) patchOpenMeaningSlot({ meaning });
+    } catch (err) {
+      const permanent =
+        err && (err.code === "translate_not_found" || err.code === "translate_invalid");
+      if (permanent) translateFailedKeys.add(cacheKey);
+      if (activePlainWordKey === key) patchOpenMeaningSlot({ error: true });
+    }
+  }
+
+  async function ensureSentenceMeaning(chunk) {
+    if (!chunk) return null;
+    const existing = (chunk.sentence_meaning || "").trim();
+    if (existing) return existing;
+    const cacheKey = `sentence:${chunk.id}`;
+    if (translateInFlight.has(cacheKey)) return translateInFlight.get(cacheKey);
+    const url = translateSentenceUrl(chunk.id);
+    if (!url) return null;
+    const run = (async () => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrf,
+        },
+        credentials: "same-origin",
+        body: "{}",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        const err = new Error(
+          payload.error || t("translate_failed", "Could not translate right now. Try again.")
+        );
+        err.code = payload.code || "translate_failed";
+        throw err;
+      }
+      const meaning = (payload.meaning || "").trim();
+      chunk.sentence_meaning = meaning;
+      chunk.has_sentence_meaning = Boolean(meaning);
+      const original = allChunks.find((item) => item.id === chunk.id);
+      if (original) {
+        original.sentence_meaning = meaning;
+        original.has_sentence_meaning = Boolean(meaning);
+      }
+      return meaning;
+    })();
+    translateInFlight.set(cacheKey, run);
+    try {
+      return await run;
+    } finally {
+      translateInFlight.delete(cacheKey);
+    }
+  }
+
   function formatMs(ms) {
     if (ms == null || !Number.isFinite(Number(ms))) return "—";
     return `${(Number(ms) / 1000).toFixed(2)}s`;
-  }
-
-  function suggestLevelLocal(text, timeMs) {
-    const words = Math.max(1, String(text || "").trim().split(/\s+/).filter(Boolean).length);
-    const seconds = Math.max(0.2, Number(timeMs) / 1000);
-    let wpm = (words / seconds) * 60;
-    if (words <= 4) wpm *= 0.85;
-    else if (words <= 8) wpm *= 0.92;
-    if (wpm >= 90) return 7;
-    if (wpm >= 75) return 6;
-    if (wpm >= 60) return 5;
-    if (wpm >= 45) return 4;
-    if (wpm >= 30) return 3;
-    if (wpm >= 18) return 2;
-    return 1;
   }
 
   function modeBestMs(chunk, mode) {
@@ -230,8 +467,8 @@
     if (!bestRecordEl) return;
     const label =
       studyAnswerMode === "speaking"
-        ? t("best_label_speaking", "Best (Speaking)")
-        : t("best_label_writing", "Best (Writing)");
+        ? t("best_label_speaking", "Best · Speaking")
+        : t("best_label_writing", "Best · Writing");
     bestRecordEl.textContent = `${label}: ${formatMs(modeBestMs(chunk, studyAnswerMode))}`;
   }
 
@@ -253,6 +490,20 @@
     cardTimerRaf = window.requestAnimationFrame(tickCardTimer);
   }
 
+  function idleTimerStatusText() {
+    if (studyAnswerMode === "writing") {
+      return t("waiting_type", "Waiting to type…");
+    }
+    if (studyAnswerMode === "speaking") {
+      return t("waiting_start", "Waiting for Start…");
+    }
+    return t("waiting_play_meaning", "Waiting for Play or meaning…");
+  }
+
+  function writingHasStartedTyping() {
+    return Boolean(typeInput && String(typeInput.value || "").trim());
+  }
+
   function resetCardTimerIdle({ resetModeFlags = true } = {}) {
     stopCardTimerLoop();
     cardTimerStart = 0;
@@ -265,7 +516,7 @@
     }
     setTimerDisplay(0);
     if (timerStatusEl) {
-      timerStatusEl.textContent = t("waiting_play_meaning", "Waiting for Play or Show meaning…");
+      timerStatusEl.textContent = idleTimerStatusText();
     }
     hideCompletionResult();
   }
@@ -282,6 +533,8 @@
 
   function ensureCardTimerStarted() {
     if (isModeCompleted(studyAnswerMode) || cardTimerRunning || cardTimerStopped) return;
+    // Writing: timer starts only after the input begins to fill.
+    if (studyAnswerMode === "writing" && !writingHasStartedTyping()) return;
     stopCardTimerLoop();
     cardTimerStart = performance.now();
     cardElapsedMs = 0;
@@ -811,15 +1064,8 @@
         previousBestMs: payload.previous_best_ms ?? previousBest,
         bestMs,
         isNewBest: payload.is_new_best,
-        suggestedLevel: payload.suggested_level,
       });
-      if (payload.suggested_level && recordMode === "writing") {
-        if (levelStatus) {
-          levelStatus.textContent = `${t("suggested_level", "Suggested level")}: ${payload.suggested_level}/7`;
-        }
-      }
     } catch (err) {
-      const suggested = suggestLevelLocal(chunk.text || "", timeMs);
       const localBest =
         previousBest != null ? Math.min(previousBest, timeMs) : timeMs;
       if (recordMode === "speaking") chunk.best_speak_ms = localBest;
@@ -830,7 +1076,6 @@
         previousBestMs: previousBest,
         bestMs: localBest,
         isNewBest: previousBest == null || timeMs < previousBest,
-        suggestedLevel: suggested,
       });
       if (levelStatus) {
         levelStatus.textContent = err.message || t("record_saved_local", "Record saved locally only.");
@@ -853,7 +1098,14 @@
     return timeMs;
   }
 
-  function showCompletionResult({ timeMs, previousBestMs, bestMs, isNewBest, suggestedLevel }) {
+  function maybeSaveSpeakingBest(score) {
+    if (studyAnswerMode !== "speaking") return;
+    const value = Number(score);
+    if (!Number.isFinite(value) || value < getSpeakThreshold()) return;
+    finishModeAttempt("speaking");
+  }
+
+  function showCompletionResult({ timeMs, previousBestMs, bestMs, isNewBest }) {
     if (!resultPanel) return;
     if (resultToastTimer) {
       window.clearTimeout(resultToastTimer);
@@ -873,9 +1125,6 @@
         resultCompare.textContent = `${t("best_stays", "Best stays")} ${formatMs(bestMs)} · ${t("this_run_slower", "this run was")} ${formatMs(slower)} ${t("slower", "slower")}`;
       }
     }
-    if (resultSuggest) {
-      resultSuggest.textContent = t("suggested_tap", "Suggested level: {n}/7 · tap it below to save", { n: suggestedLevel });
-    }
     resultPanel.classList.remove("hidden");
     // Next frame so the enter transition runs after display flips on.
     window.requestAnimationFrame(function () {
@@ -883,7 +1132,7 @@
     });
     resultToastTimer = window.setTimeout(hideCompletionResult, 5200);
     const chunk = currentChunk();
-    if (chunk) renderLevels(chunk, suggestedLevel);
+    if (chunk) renderLevels(chunk);
   }
 
   function normalizeWord(value) {
@@ -1095,6 +1344,104 @@
     );
   }
 
+  function ensureWordMeaningsList(chunk) {
+    if (!chunk) return [];
+    if (!Array.isArray(chunk.word_meanings)) chunk.word_meanings = [];
+    return chunk.word_meanings;
+  }
+
+  function getPlainWordMeaning(chunk, start, end) {
+    const rows = ensureWordMeaningsList(chunk);
+    const hit = rows.find(
+      (row) =>
+        row &&
+        Number(row.start_char) === Number(start) &&
+        Number(row.end_char) === Number(end)
+    );
+    return ((hit && hit.meaning) || "").trim();
+  }
+
+  function setPlainWordMeaning(chunk, start, end, meaning, extra) {
+    const text = (meaning || "").trim();
+    if (!text) return;
+    const rows = ensureWordMeaningsList(chunk);
+    const entry = {
+      text: (extra && extra.text) || (chunk.text || "").slice(start, end),
+      meaning: text,
+      start_char: Number(start),
+      end_char: Number(end),
+    };
+    const idx = rows.findIndex(
+      (row) =>
+        row &&
+        Number(row.start_char) === Number(start) &&
+        Number(row.end_char) === Number(end)
+    );
+    if (idx >= 0) rows[idx] = { ...rows[idx], ...entry };
+    else rows.push(entry);
+    const original = allChunks.find((item) => item.id === chunk.id);
+    if (original && original !== chunk) {
+      ensureWordMeaningsList(original);
+      const oidx = original.word_meanings.findIndex(
+        (row) =>
+          row &&
+          Number(row.start_char) === Number(start) &&
+          Number(row.end_char) === Number(end)
+      );
+      if (oidx >= 0) original.word_meanings[oidx] = { ...original.word_meanings[oidx], ...entry };
+      else original.word_meanings.push(entry);
+    }
+  }
+
+  function plainWordPopBody(absStart, absEnd) {
+    const chunk = currentChunk();
+    const canPlay = canPlayCharRange(chunk, absStart, absEnd);
+    const playLabel = canPlay
+      ? t("play_word", "Play word")
+      : t("no_synced_audio", "No synced audio");
+    const leitnerLabel = t("leitner", "Leitner");
+    const playIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8.2 5.8v12.4c0 .7.8 1.1 1.4.7l9.2-5.7c.6-.4.6-1.2 0-1.5L9.6 5.1c-.6-.4-1.4 0-1.4.7Z"/></svg>`;
+    const leitnerIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="4.5" y="5.5" width="12.5" height="9.5" rx="1.4"/><path d="M7 17.5h10.2a1.8 1.8 0 0 0 1.8-1.8V8" stroke-linecap="round"/><path d="M8.2 19.5h9.2" stroke-linecap="round"/></svg>`;
+    const cachedMeaning = getPlainWordMeaning(chunk, absStart, absEnd);
+    return (
+      `<span class="study-hl-actions">` +
+      `<button type="button" class="hl-play" data-word-start="${absStart}" data-word-end="${absEnd}" ${
+        canPlay ? "" : "disabled"
+      } title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>` +
+      `<button type="button" class="hl-leitner" title="${leitnerLabel}" aria-label="${leitnerLabel}">${leitnerIcon}</button>` +
+      `</span>` +
+      meaningSlotHtml(cachedMeaning)
+    );
+  }
+
+  function paintClickablePlain(text, absoluteOffset) {
+    if (!text) return "";
+    let html = "";
+    let cursor = 0;
+    const re = /\S+/g;
+    let match;
+    while ((match = re.exec(text))) {
+      const start = match.index;
+      const end = start + match[0].length;
+      const absStart = absoluteOffset + start;
+      const absEnd = absoluteOffset + end;
+      html += paintPlainMatched(text.slice(cursor, start), absoluteOffset + cursor);
+      const key = `${absStart}:${absEnd}`;
+      const open = activePlainWordKey === key;
+      html +=
+        `<span class="study-hl-wrap is-plain-word${open ? " is-open" : ""}" data-word-start="${absStart}" data-word-end="${absEnd}">` +
+        `<button type="button" class="study-word-hit" data-word-start="${absStart}" data-word-end="${absEnd}">` +
+        paintPlainMatched(match[0], absStart) +
+        `</button>` +
+        `<span class="study-hl-pop" role="dialog" aria-label="${t("highlight_tools", "Highlight tools")}">` +
+        plainWordPopBody(absStart, absEnd) +
+        `</span></span>`;
+      cursor = end;
+    }
+    html += paintPlainMatched(text.slice(cursor), absoluteOffset + cursor);
+    return html;
+  }
+
   function splitDisplayLines(text, displayLines, lineBreaks) {
     const breaks = [...(lineBreaks || [])]
       .map(Number)
@@ -1167,7 +1514,7 @@
     let occupied = -1;
     events.forEach((ev) => {
       if (ev.start < occupied) return;
-      html += paintPlainMatched(text.slice(cursor, ev.start), absoluteOffset + cursor);
+      html += paintClickablePlain(text.slice(cursor, ev.start), absoluteOffset + cursor);
       const snippet = escapeHtml(text.slice(ev.start, ev.end));
       if (ev.kind === "highlight") {
         const typedOk = typedCompleteHighlightIds.has(ev.id);
@@ -1183,11 +1530,14 @@
             : " is-hidden";
         // Keep the real word in the DOM so Show/Hide never changes layout width.
         const meaning = (ev.meaning || "").trim();
-        const canPlay =
-          Boolean(chunkMediaUrl(currentChunk())) &&
-          Number.isFinite(Number(ev.start_sec)) &&
-          Number.isFinite(Number(ev.end_sec)) &&
-          Number(ev.end_sec) >= Number(ev.start_sec);
+        const canPlay = canPlayCharRange(currentChunk(), absoluteOffset + ev.start, absoluteOffset + ev.end, {
+          highlight: {
+            start_sec: ev.start_sec,
+            end_sec: ev.end_sec,
+            start_char: absoluteOffset + ev.start,
+            end_char: absoluteOffset + ev.end,
+          },
+        });
         const revealLabel = revealed ? t("hide", "Hide") : t("show", "Show");
         const playLabel = canPlay
           ? t("play_word", "Play word")
@@ -1215,13 +1565,11 @@
           } title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>` +
           `<button type="button" class="hl-leitner" data-id="${ev.id}" title="${leitnerLabel}" aria-label="${leitnerLabel}">${leitnerIcon}</button>` +
           `</span>` +
-          `<span class="study-hl-meaning${meaning ? "" : " is-empty"}" dir="auto">${
-            meaning ? escapeHtml(meaning) : t("no_meaning", "No meaning")
-          }</span>` +
+          meaningSlotHtml(meaning) +
           `</span></span>`;
       } else {
         const cls = COLOR_CLASS[ev.color];
-        const painted = paintPlainMatched(
+        const painted = paintClickablePlain(
           text.slice(ev.start, ev.end),
           absoluteOffset + ev.start
         );
@@ -1233,7 +1581,7 @@
       cursor = ev.end;
       occupied = ev.end;
     });
-    html += paintPlainMatched(text.slice(cursor), absoluteOffset + cursor);
+    html += paintClickablePlain(text.slice(cursor), absoluteOffset + cursor);
     return html;
   }
 
@@ -1241,6 +1589,9 @@
     const chunk = currentChunk();
     if (!chunk) return;
     const typed = typeInput ? typeInput.value : "";
+    if (studyAnswerMode === "writing" && String(typed || "").trim()) {
+      ensureCardTimerStarted();
+    }
     const progress = computeTypingProgress(typed, chunk.text || "");
     typedMatchedEnd = progress.matchedEnd;
     typedMatchedHighlightIds = progress.highlightIds;
@@ -1319,7 +1670,19 @@
       speechBtn.tabIndex = studyAnswerMode === "speaking" ? 0 : -1;
       const startLabel = t("speak_start_recording", "Start");
       speechBtn.title = startLabel;
+      speechBtn.classList.remove("is-again");
+      speechBtn.classList.add("is-start");
       if (speechLabel) speechLabel.textContent = startLabel;
+    }
+    const writingMode = studyAnswerMode === "writing";
+    if (repeatCardBtn) {
+      repeatCardBtn.hidden = !writingMode;
+    }
+    if (mediaActions) {
+      mediaActions.classList.toggle("has-reload", writingMode);
+    }
+    if (timerStatusEl && !cardTimerRunning && !cardTimerStopped) {
+      timerStatusEl.textContent = idleTimerStatusText();
     }
   }
 
@@ -1585,14 +1948,20 @@
     mediaSessionState = next;
     const hasMedia = Boolean(chunkMediaUrl(currentChunk()));
     if (playBtn) {
-      playBtn.disabled = !hasMedia;
+      playBtn.disabled = !hasMedia || next === "playing";
+      // Keep label length stable so the media row never reflows.
+      // Playing uses an overlay spinner; paused shows Resume.
+      playBtn.classList.toggle("is-media-playing", next === "playing");
       if (next === "paused") {
         playBtn.textContent = t("resume", "▶ Resume");
-      } else if (next === "playing") {
-        playBtn.textContent = t("playing", "▶ Playing…");
+        playBtn.title = t("resume", "▶ Resume");
       } else {
-        playBtn.textContent = t("play_card", "▶ Play");
+        const playLabel = t("play_card", "▶ Play");
+        playBtn.textContent = playLabel;
+        playBtn.title =
+          next === "playing" ? t("playing", "▶ Playing…") : playLabel;
       }
+      playBtn.setAttribute("aria-busy", next === "playing" ? "true" : "false");
     }
     if (pauseBtn) pauseBtn.disabled = !hasMedia || next !== "playing";
     if (stopBtn) stopBtn.disabled = !hasMedia || next === "stopped";
@@ -1617,7 +1986,8 @@
       pauseMedia();
       return;
     }
-    playFullCard({ startTimer: true });
+    // Writing/Speaking timers do not start from Play.
+    playFullCard({ startTimer: false });
   }
 
   function studyToolIcon(kind) {
@@ -1637,30 +2007,39 @@
     if (!meaningBtn) return;
     const chunk = currentChunk();
     const hasMeaning = Boolean(chunk && (chunk.sentence_meaning || "").trim());
-    meaningBtn.disabled = !hasMeaning;
+    const canLookup = Boolean(chunk && (chunk.text || "").trim() && translateSentenceUrl(chunk.id));
+    meaningBtn.disabled = !hasMeaning && !canLookup;
     const label = meaningOpen
       ? t("hide_meaning", "Hide meaning")
       : hasMeaning
         ? t("show_meaning", "Show meaning")
-        : t("no_sentence_meaning", "No sentence meaning");
+        : canLookup
+          ? t("show_meaning", "Show meaning")
+          : t("no_sentence_meaning", "No sentence meaning");
     meaningBtn.title = label;
     meaningBtn.setAttribute("aria-label", label);
     meaningBtn.setAttribute("aria-pressed", meaningOpen && hasMeaning ? "true" : "false");
+    meaningBtn.classList.toggle("is-meaning-loading", Boolean(meaningBtn.dataset.loading));
     meaningBtn.innerHTML = studyToolIcon(meaningOpen && hasMeaning ? "meaning-off" : "meaning-on");
   }
 
   function updateRepeatCardBtnUI() {
     if (!repeatCardBtn) return;
-    const hasMedia = Boolean(chunkMediaUrl(currentChunk()));
-    const label = t("repeat_card", "Repeat card");
-    repeatCardBtn.disabled = !hasMedia;
-    repeatCardBtn.title = label;
-    repeatCardBtn.setAttribute("aria-label", label);
+    const label = t("writing_clear", "Again");
+    const title = t(
+      "writing_clear_title",
+      "Start over — clear typing and reset timer"
+    );
+    repeatCardBtn.disabled = false;
+    repeatCardBtn.textContent = label;
+    repeatCardBtn.title = title;
+    repeatCardBtn.setAttribute("aria-label", title);
   }
 
   function resetCardProgressState(chunk) {
     meaningOpen = false;
     stopSpeechRecognition({ keepHint: true });
+    clearSpeakReviewOnCard();
     if (studySpeakApi) studySpeakApi.reset();
     revealedHighlightIds = new Set();
     typedMatchedEnd = -1;
@@ -1684,10 +2063,32 @@
     renderCardText();
   }
 
+  function clearWritingAttempt() {
+    // Only clear the answer + pin timer at 0. Do not reload/replay the card
+    // and do not focus/scroll the page.
+    clearSpeakReviewOnCard();
+    writingCompleted = false;
+    typedMatchedEnd = -1;
+    typedMatchedHighlightIds = new Set();
+    typedCompleteHighlightIds = new Set();
+    speechBase = "";
+    speechSessionPrefix = "";
+    if (typeInput) typeInput.value = "";
+    if (typeHint) {
+      typeHint.textContent = studyModeCopy("writing", "hint");
+    }
+    resetCardTimerIdle({ resetModeFlags: false });
+    hideCompletionResult();
+    renderCardText();
+  }
+
   async function repeatCurrentCard() {
+    if (studyAnswerMode === "writing") {
+      clearWritingAttempt();
+      return;
+    }
     const chunk = currentChunk();
     if (!chunk) return;
-    // Full card reset — same as if the card just loaded.
     stopAudio();
     resetCardProgressState(chunk);
     if (typeInput) {
@@ -1871,26 +2272,99 @@
     }
   }
 
-  async function playHighlightClip(highlight) {
+  function tokenizeTextSpans(text) {
+    const tokens = [];
+    const re = /\S+/g;
+    let match;
+    while ((match = re.exec(text || ""))) {
+      tokens.push({
+        word: match[0],
+        start_char: match.index,
+        end_char: match.index + match[0].length,
+      });
+    }
+    return tokens;
+  }
+
+  function audioSpanForCharRange(chunk, startChar, endChar, { neighbors = 1 } = {}) {
+    if (!chunk) return null;
+    const start = Number(startChar);
+    const end = Number(endChar);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+
+    const timings = Array.isArray(chunk.word_timings) ? chunk.word_timings : [];
+    const tokens = tokenizeTextSpans(chunk.text || "");
+    if (timings.length && tokens.length) {
+      let first = -1;
+      let last = -1;
+      for (let i = 0; i < tokens.length; i += 1) {
+        const token = tokens[i];
+        if (token.end_char <= start || token.start_char >= end) continue;
+        if (first < 0) first = i;
+        last = i;
+      }
+      if (first >= 0) {
+        const pad = Math.max(0, Number(neighbors) || 0);
+        first = Math.max(0, first - pad);
+        last = Math.min(tokens.length - 1, last + pad);
+        const usable = [];
+        for (let i = first; i <= last; i += 1) {
+          const timing = timings[i];
+          if (!timing || timing.start == null || timing.end == null) continue;
+          const tStart = Number(timing.start);
+          const tEnd = Number(timing.end);
+          if (!Number.isFinite(tStart) || !Number.isFinite(tEnd) || tEnd < tStart) continue;
+          usable.push({ start: tStart, end: tEnd });
+        }
+        if (usable.length) {
+          return { start: usable[0].start, end: usable[usable.length - 1].end };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function highlightFallbackSpan(highlight) {
+    if (!highlight) return null;
+    const start = Number(highlight.start_sec);
+    const end = Number(highlight.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+    return { start, end };
+  }
+
+  function resolvePlaySpan(chunk, startChar, endChar, { neighbors = 1, highlight = null } = {}) {
+    return (
+      audioSpanForCharRange(chunk, startChar, endChar, { neighbors }) ||
+      highlightFallbackSpan(highlight)
+    );
+  }
+
+  function canPlayCharRange(chunk, startChar, endChar, { highlight = null } = {}) {
+    if (!chunkMediaUrl(chunk)) return false;
+    return Boolean(resolvePlaySpan(chunk, startChar, endChar, { neighbors: 1, highlight }));
+  }
+
+  async function playAudioSpan(start, end) {
     const chunk = currentChunk();
     const media = ensureCardMedia(chunk);
-    if (!highlight || !media) {
+    if (!media) {
       if (levelStatus) levelStatus.textContent = t("no_audio_card", "No audio available for this card.");
       return;
     }
-    const start = Number(highlight.start_sec);
-    const end = Number(highlight.end_sec);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    let playFrom = Math.max(0, Number(start));
+    let finishAt = Number(end);
+    if (!Number.isFinite(playFrom) || !Number.isFinite(finishAt) || finishAt < playFrom) {
       if (levelStatus) {
         levelStatus.textContent = t("no_highlight_times", "This highlight has no synced audio times yet.");
       }
       return;
     }
+    // Tiny Whisper spans can be inaudible; keep a minimum hearable window.
+    if (finishAt - playFrom < 0.18) finishAt = playFrom + 0.18;
 
     stopAudio();
     ensureCardMedia(chunk);
-    const playFrom = Math.max(0, start);
-    const finishAt = end;
     await safeSeekMedia(media, playFrom);
     stopListener = () => {
       if (media.currentTime >= finishAt) stopAudio();
@@ -1909,19 +2383,243 @@
     }
   }
 
+  async function playWordContext(startChar, endChar, { highlight = null } = {}) {
+    const chunk = currentChunk();
+    const span = resolvePlaySpan(chunk, startChar, endChar, { neighbors: 1, highlight });
+    if (!span) {
+      if (levelStatus) {
+        levelStatus.textContent = chunkMediaUrl(chunk)
+          ? t("no_highlight_times", "This highlight has no synced audio times yet.")
+          : t("no_audio_card", "No audio available for this card.");
+      }
+      return;
+    }
+    await playAudioSpan(span.start, span.end);
+  }
+
+  async function playHighlightClip(highlight) {
+    if (!highlight) {
+      if (levelStatus) levelStatus.textContent = t("no_audio_card", "No audio available for this card.");
+      return;
+    }
+    await playWordContext(highlight.start_char, highlight.end_char, { highlight });
+  }
+
+  function speakStatusClass(item) {
+    const status = item && item.forcedOk ? "ok" : item ? item.status : "";
+    if (status === "ok") return "is-ok";
+    if (status === "near") return "is-near";
+    if (status === "missing") return "is-missing";
+    return "is-bad";
+  }
+
+  function speakStatusMark(item) {
+    const status = item && item.forcedOk ? "ok" : item ? item.status : "";
+    if (status === "ok") return "✓";
+    if (status === "near") return "~";
+    if (status === "missing") return "–";
+    return "✕";
+  }
+
+  function findHighlightCoveringRange(start, end, highlights) {
+    return (
+      (highlights || []).find(
+        (h) => Number(h.start_char) < end && Number(h.end_char) > start
+      ) || null
+    );
+  }
+
+  function speakHeardLabel(item) {
+    if (!item) return "";
+    const heard = item.heard || t("speak_missing", "(missing)");
+    return t("speak_expected_heard", "Expected: {expected} | Heard: {heard}", {
+      expected: item.expected,
+      heard,
+    });
+  }
+
+  function buildSpeakReviewPopBody(item, highlight) {
+    const heardHtml = item
+      ? `<span class="study-speak-heard">${escapeHtml(speakHeardLabel(item))}</span>`
+      : "";
+    const playStart = highlight
+      ? Number(highlight.start_char)
+      : item
+        ? Number(item.start)
+        : NaN;
+    const playEnd = highlight
+      ? Number(highlight.end_char)
+      : item
+        ? Number(item.end)
+        : NaN;
+    const canPlay = canPlayCharRange(currentChunk(), playStart, playEnd, { highlight });
+    const playLabel = canPlay
+      ? t("play_word", "Play word")
+      : t("no_synced_audio", "No synced audio");
+    const playIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8.2 5.8v12.4c0 .7.8 1.1 1.4.7l9.2-5.7c.6-.4.6-1.2 0-1.5L9.6 5.1c-.6-.4-1.4 0-1.4.7Z"/></svg>`;
+    const playBtn = highlight
+      ? `<button type="button" class="hl-play" data-id="${highlight.id}" ${
+          canPlay ? "" : "disabled"
+        } title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>`
+      : Number.isFinite(playStart) && Number.isFinite(playEnd)
+        ? `<button type="button" class="hl-play" data-word-start="${playStart}" data-word-end="${playEnd}" ${
+            canPlay ? "" : "disabled"
+          } title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>`
+        : `<button type="button" class="hl-play" disabled title="${playLabel}" aria-label="${playLabel}">${playIcon}</button>`;
+
+    if (!highlight) {
+      return (
+        heardHtml +
+        `<span class="study-hl-actions">${playBtn}</span>`
+      );
+    }
+
+    const meaning = (highlight.meaning || "").trim();
+    const revealLabel = t("hide", "Hide");
+    const leitnerLabel = t("leitner", "Leitner");
+    const revealIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6"/></svg>`;
+    const leitnerIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="4.5" y="5.5" width="12.5" height="9.5" rx="1.4"/><path d="M7 17.5h10.2a1.8 1.8 0 0 0 1.8-1.8V8" stroke-linecap="round"/><path d="M8.2 19.5h9.2" stroke-linecap="round"/></svg>`;
+    return (
+      heardHtml +
+      `<span class="study-hl-actions">` +
+      `<button type="button" class="hl-reveal" data-id="${highlight.id}" title="${revealLabel}" aria-label="${revealLabel}" aria-pressed="true">${revealIcon}</button>` +
+      playBtn +
+      `<button type="button" class="hl-leitner" data-id="${highlight.id}" title="${leitnerLabel}" aria-label="${leitnerLabel}">${leitnerIcon}</button>` +
+      `</span>` +
+      meaningSlotHtml(meaning)
+    );
+  }
+
+  function buildSpeakWordHtml(item, index, displayText) {
+    const selected = index === speakSelectedIndex ? " is-selected" : "";
+    return (
+      `<button type="button" class="study-speak-inline ${speakStatusClass(item)}${selected}"` +
+      ` data-speak-index="${index}">` +
+      `<span class="study-speak-inline__text">${escapeHtml(displayText || item.expected)}</span>` +
+      `<span class="study-speak-inline__mark" aria-hidden="true">${speakStatusMark(item)}</span>` +
+      `</button>`
+    );
+  }
+
+  function buildSpeakReviewGroupWrap(group, innerHtml, focusItem) {
+    const highlight = group.highlight;
+    const open =
+      group.words.some((w) => w.index === speakSelectedIndex) ||
+      (highlight &&
+        activeHighlightId != null &&
+        Number(activeHighlightId) === Number(highlight.id));
+    const firstIndex = group.words[0].index;
+    if (!highlight) {
+      // Non-highlight words stay visually plain, but remain clickable.
+      return (
+        `<span class="study-hl-wrap is-plain-word${open ? " is-open" : ""}" data-speak-wrap="${firstIndex}">` +
+        `<span class="study-word-hit study-word-hit--speak">${innerHtml}</span>` +
+        `<span class="study-hl-pop" role="dialog" aria-label="${t("speak_result_title", "Speaking result")}">` +
+        buildSpeakReviewPopBody(focusItem, null) +
+        `</span></span>`
+      );
+    }
+    return (
+      `<span class="study-hl-wrap${open ? " is-open" : ""}" data-id="${highlight.id}">` +
+      `<mark class="study-mark is-revealed is-speak-review" data-id="${highlight.id}" title="${t("highlighted_word", "Highlighted word")}">` +
+      innerHtml +
+      `</mark>` +
+      `<span class="study-hl-pop" role="dialog" aria-label="${t("speak_result_title", "Speaking result")}">` +
+      buildSpeakReviewPopBody(focusItem, highlight) +
+      `</span></span>`
+    );
+  }
+
+  function paintSpeakReviewLine(text, absoluteOffset) {
+    if (!text) return "";
+    const chunk = currentChunk();
+    const highlights = (chunk && chunk.highlights) || [];
+    const absEnd = absoluteOffset + text.length;
+    const items = speakReviewItems
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item && item.end > absoluteOffset && item.start < absEnd)
+      .sort((a, b) => a.item.start - b.item.start || b.item.end - a.item.end);
+
+    // Merge consecutive words that share the same highlight into one visual group.
+    const groups = [];
+    items.forEach(({ item, index }) => {
+      const highlight = findHighlightCoveringRange(item.start, item.end, highlights);
+      if (highlight) revealedHighlightIds.add(Number(highlight.id));
+      const last = groups[groups.length - 1];
+      if (
+        last &&
+        highlight &&
+        last.highlight &&
+        Number(last.highlight.id) === Number(highlight.id)
+      ) {
+        last.words.push({ item, index });
+        return;
+      }
+      groups.push({ highlight: highlight || null, words: [{ item, index }] });
+    });
+
+    let html = "";
+    let cursor = 0;
+    groups.forEach((group) => {
+      const first = group.words[0];
+      const lastWord = group.words[group.words.length - 1];
+      const localStart = Math.max(0, first.item.start - absoluteOffset);
+      const localEnd = Math.min(text.length, lastWord.item.end - absoluteOffset);
+      if (localEnd <= localStart) return;
+      html += escapeHtml(text.slice(cursor, localStart));
+
+      let inner = "";
+      let innerCursor = localStart;
+      group.words.forEach(({ item, index }) => {
+        const wordStart = Math.max(0, item.start - absoluteOffset);
+        const wordEnd = Math.min(text.length, item.end - absoluteOffset);
+        if (wordStart > innerCursor) {
+          inner += escapeHtml(text.slice(innerCursor, wordStart));
+        }
+        inner += buildSpeakWordHtml(item, index, text.slice(wordStart, wordEnd));
+        innerCursor = wordEnd;
+      });
+
+      const selectedWord = group.words.find((w) => w.index === speakSelectedIndex);
+      const focusItem = selectedWord ? selectedWord.item : group.words[0].item;
+      // Every word group is clickable; only real highlights keep highlight styling.
+      html += buildSpeakReviewGroupWrap(group, inner, focusItem);
+      cursor = localEnd;
+    });
+    html += escapeHtml(text.slice(cursor));
+    return html;
+  }
+
+  function clearSpeakReviewOnCard() {
+    speakReviewItems = [];
+    speakSelectedIndex = -1;
+    activePlainWordKey = null;
+    if (textEl) textEl.classList.remove("is-speak-review");
+  }
+
   function renderCardText() {
     const chunk = currentChunk();
     if (!chunk || !textEl) return;
+    const reviewMode =
+      studyAnswerMode === "speaking" && speakReviewItems.length > 0;
+    textEl.classList.toggle("is-speak-review", reviewMode);
+    if (reviewMode) {
+      ((chunk && chunk.highlights) || []).forEach((item) => {
+        revealedHighlightIds.add(Number(item.id));
+      });
+    }
     const lines = splitDisplayLines(chunk.text || "", chunk.display_lines, chunk.line_breaks);
     textEl.innerHTML =
       lines
         .map((line) => {
-          const painted = paintSegment(
-            line.text,
-            line.offset,
-            chunk.highlights,
-            chunk.color_spans
-          );
+          const painted = reviewMode
+            ? paintSpeakReviewLine(line.text, line.offset)
+            : paintSegment(
+                line.text,
+                line.offset,
+                chunk.highlights,
+                chunk.color_spans
+              );
           return `<div class="study-line">${painted || "&nbsp;"}</div>`;
         })
         .join("") || '<div class="study-line">&nbsp;</div>';
@@ -1936,16 +2634,20 @@
   }
 
   function positionActiveHighlightPop() {
-    if (!textEl || activeHighlightId == null) return;
-    const wrap = textEl.querySelector(
-      `.study-hl-wrap[data-id="${activeHighlightId}"]`
-    );
+    if (!textEl) return;
+    // Always anchor to the open wrap (never the first duplicate id).
+    const wrap = textEl.querySelector(".study-hl-wrap.is-open");
     if (!wrap) return;
-    const mark = wrap.querySelector("mark.study-mark");
+    const mark =
+      wrap.querySelector("mark.study-mark") ||
+      wrap.querySelector(".study-word-hit");
     const pop = wrap.querySelector(".study-hl-pop");
     if (!mark || !pop) return;
 
     pop.classList.remove("is-above");
+    // Make measurable before reading geometry.
+    pop.style.visibility = "hidden";
+    pop.style.display = "block";
     pop.style.left = "0px";
     pop.style.top = "0px";
 
@@ -1974,21 +2676,50 @@
     pop.style.left = `${Math.round(left)}px`;
     pop.style.top = `${Math.round(top)}px`;
     pop.classList.toggle("is-above", placeAbove);
+    pop.style.visibility = "";
+    pop.style.display = "";
   }
 
   function setActiveHighlight(highlight, { rerender = true } = {}) {
     activeHighlight = highlight || null;
     activeHighlightId = highlight ? highlight.id : null;
+    if (highlight) activePlainWordKey = null;
     if (rerender) renderCardText();
     else if (textEl) {
       textEl.querySelectorAll(".study-hl-wrap").forEach((node) => {
+        const openByHighlight =
+          activeHighlightId != null && Number(node.dataset.id) === Number(activeHighlightId);
+        const openBySpeak =
+          speakSelectedIndex >= 0 &&
+          Number(node.getAttribute("data-speak-wrap")) === speakSelectedIndex;
+        const openByPlain =
+          activePlainWordKey &&
+          `${node.dataset.wordStart}:${node.dataset.wordEnd}` === activePlainWordKey;
         node.classList.toggle(
           "is-open",
-          activeHighlightId != null && Number(node.dataset.id) === activeHighlightId
+          openByHighlight || openBySpeak || openByPlain
         );
       });
       window.requestAnimationFrame(positionActiveHighlightPop);
     }
+    if (highlight && !(highlight.meaning || "").trim()) {
+      ensureHighlightMeaning(highlight);
+    }
+  }
+
+  function setActivePlainWord(start, end) {
+    const key = `${start}:${end}`;
+    if (activePlainWordKey === key) {
+      activePlainWordKey = null;
+      renderCardText();
+      return;
+    }
+    activePlainWordKey = key;
+    activeHighlight = null;
+    activeHighlightId = null;
+    speakSelectedIndex = -1;
+    renderCardText();
+    ensurePlainWordMeaning(start, end);
   }
 
   function updateSetupSelected() {
@@ -2083,24 +2814,16 @@
     renderCard();
   }
 
-  function renderLevels(chunk, suggestedLevel) {
+  function renderLevels(chunk) {
     if (!levelsEl) return;
     const current = chunk.study_level != null ? Number(chunk.study_level) : null;
-    const suggested = suggestedLevel != null ? Number(suggestedLevel) : null;
     levelsEl.innerHTML = Array.from({ length: 7 }, (_, i) => {
       const level = i + 1;
       const active = current === level ? " is-active" : "";
-      const suggest =
-        suggested === level && current !== level ? " is-suggested" : "";
-      return `<button type="button" class="level-btn${active}${suggest}" data-level="${level}" aria-pressed="${current === level ? "true" : "false"}">${level}</button>`;
+      return `<button type="button" class="level-btn${active}" data-level="${level}" aria-pressed="${current === level ? "true" : "false"}">${level}</button>`;
     }).join("");
     if (levelStatus) {
-      if (suggested != null && current !== suggested) {
-        levelStatus.textContent =
-          current != null
-            ? t("saved_level", "Saved: {n}", { n: current }) + ` · ${t("suggested_level", "Suggested")}: ${suggested}`
-            : t("suggested_tap_short", "Suggested {n} · tap to save", { n: suggested });
-      } else if (current != null) {
+      if (current != null) {
         levelStatus.textContent = t("saved_level", "Saved: {n}", { n: current });
       } else {
         levelStatus.textContent = t("no_level_saved_short", "Not set yet");
@@ -2129,10 +2852,13 @@
 
     const mediaUrl = chunkMediaUrl(chunk);
     if (playBtn) {
+      playBtn.classList.remove("is-media-playing");
+      playBtn.removeAttribute("aria-busy");
       playBtn.disabled = !mediaUrl;
       playBtn.textContent = mediaUrl
         ? t("play_card", "▶ Play")
         : t("no_audio", "No audio");
+      playBtn.title = playBtn.textContent;
     }
     if (pauseBtn) pauseBtn.disabled = true;
     if (stopBtn) stopBtn.disabled = true;
@@ -2194,7 +2920,7 @@
 
   async function saveLevel(level, triggerBtn) {
     const chunk = currentChunk();
-    if (!chunk) return;
+    if (!chunk) return false;
     const run = async () => {
       const formData = new FormData();
       formData.append("study_level", String(level));
@@ -2221,9 +2947,60 @@
       } else {
         await run();
       }
+      return true;
     } catch (err) {
       if (levelStatus) levelStatus.textContent = err.message || t("could_not_save_level", "Could not save level.");
+      return false;
     }
+  }
+
+  function closeLevelGate() {
+    if (!levelGateModal) return;
+    levelGateOpen = false;
+    levelGateModal.classList.add("hidden");
+    levelGateModal.setAttribute("hidden", "");
+    document.body.classList.remove("mv-modal-open");
+  }
+
+  function renderLevelGateButtons(chunk) {
+    if (!levelGateLevels) return;
+    const current = chunk && chunk.study_level != null ? Number(chunk.study_level) : null;
+    levelGateLevels.innerHTML = Array.from({ length: 7 }, (_, i) => {
+      const level = i + 1;
+      const active = current === level ? " is-active" : "";
+      return `<button type="button" class="level-btn${active}" data-level="${level}" aria-pressed="${current === level ? "true" : "false"}">${level}</button>`;
+    }).join("");
+  }
+
+  function openLevelGate() {
+    const chunk = currentChunk();
+    if (!levelGateModal || !chunk) return;
+    renderLevelGateButtons(chunk);
+    levelGateOpen = true;
+    levelGateModal.classList.remove("hidden");
+    levelGateModal.removeAttribute("hidden");
+    document.body.classList.add("mv-modal-open");
+    if (levelGateOk) levelGateOk.focus();
+  }
+
+  function goToNextCardOrFinish() {
+    stopAudio();
+    if (index >= queue.length - 1) {
+      if (lesson.exit_url) window.location.href = lesson.exit_url;
+      return;
+    }
+    index += 1;
+    renderCard();
+  }
+
+  function requestNextCard() {
+    const chunk = currentChunk();
+    if (!chunk) return;
+    if (chunk.study_level == null) {
+      openLevelGate();
+      return;
+    }
+    goToNextCardOrFinish();
   }
 
   if (exitLink && lesson.exit_url) {
@@ -2300,7 +3077,7 @@
   }
 
   if (playBtn) {
-    playBtn.addEventListener("click", () => playFullCard({ startTimer: true }));
+    playBtn.addEventListener("click", () => playFullCard({ startTimer: false }));
   }
 
   if (pauseBtn) {
@@ -2333,15 +3110,36 @@
   }
 
   if (meaningBtn) {
-    meaningBtn.addEventListener("click", () => {
+    meaningBtn.addEventListener("click", async () => {
       const chunk = currentChunk();
-      if (!chunk || !(chunk.sentence_meaning || "").trim() || !sentenceMeaningEl) return;
+      if (!chunk || !sentenceMeaningEl) return;
       if (meaningOpen) {
         hideSentenceMeaningToast();
         return;
       }
-      showSentenceMeaningToast(chunk.sentence_meaning || "");
-      ensureCardTimerStarted();
+      const existing = (chunk.sentence_meaning || "").trim();
+      if (existing) {
+        showSentenceMeaningToast(existing);
+        if (studyAnswerMode === "writing") ensureCardTimerStarted();
+        return;
+      }
+      if (meaningBtn.dataset.loading === "1") return;
+      meaningBtn.dataset.loading = "1";
+      updateMeaningBtnUI();
+      try {
+        const meaning = await ensureSentenceMeaning(chunk);
+        if ((meaning || "").trim()) {
+          showSentenceMeaningToast(meaning);
+          if (studyAnswerMode === "writing") ensureCardTimerStarted();
+        } else {
+          showSentenceMeaningToast(t("meaning_unavailable", "Meaning unavailable"));
+        }
+      } catch (_) {
+        showSentenceMeaningToast(t("meaning_unavailable", "Meaning unavailable"));
+      } finally {
+        delete meaningBtn.dataset.loading;
+        updateMeaningBtnUI();
+      }
     });
   }
 
@@ -2368,6 +3166,10 @@
   }
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (levelGateOpen) {
+      closeLevelGate();
+      return;
+    }
     if (settingsModal && !settingsModal.hasAttribute("hidden")) {
       closeStudySettingsModal();
     }
@@ -2439,9 +3241,18 @@
         if (levelStatus) levelStatus.textContent = message;
       },
       onStart: () => {
-        // If Play was not pressed yet, start the speak timer after the 3s countdown.
+        // Speaking timer starts from Start only (after the 3s countdown), never from Play.
+        // Start again after a finished attempt: clear the previous freeze so a new run can count.
         if (studyAnswerMode !== "speaking") return;
-        if (cardTimerRunning || cardTimerStopped || isModeCompleted("speaking")) return;
+        speakingCompleted = false;
+        stopCardTimerLoop();
+        cardTimerStart = 0;
+        cardElapsedMs = 0;
+        cardTimerRunning = false;
+        cardTimerStopped = false;
+        setTimerDisplay(0);
+        if (timerStatusEl) timerStatusEl.textContent = idleTimerStatusText();
+        hideCompletionResult();
         window.setTimeout(() => {
           if (studyAnswerMode !== "speaking") return;
           if (cardTimerRunning || cardTimerStopped || isModeCompleted("speaking")) return;
@@ -2453,17 +3264,39 @@
         if (studyAnswerMode !== "speaking") return;
         if (cardTimerRunning) freezeCardTimer();
       },
-      onComplete: () => {
-        revealAllHighlightsForSpeakReview();
-        // Speaking has its own best-time record, separate from writing.
-        if (studyAnswerMode === "speaking") {
-          finishModeAttempt("speaking");
+      onComplete: (_transcript, _alignments, score) => {
+        // Best speaking time only counts when score meets the threshold.
+        maybeSaveSpeakingBest(score);
+      },
+      onReviewReady: (alignments, score, selectedIndex) => {
+        speakReviewItems = Array.isArray(alignments) ? alignments.slice() : [];
+        speakSelectedIndex =
+          selectedIndex == null || !Number.isFinite(Number(selectedIndex))
+            ? -1
+            : Number(selectedIndex);
+        activePlainWordKey = null;
+        const chunk = currentChunk();
+        if (speakSelectedIndex >= 0 && speakReviewItems[speakSelectedIndex]) {
+          const item = speakReviewItems[speakSelectedIndex];
+          const hl = findHighlightCoveringRange(
+            item.start,
+            item.end,
+            (chunk && chunk.highlights) || []
+          );
+          activeHighlight = hl;
+          activeHighlightId = hl ? hl.id : null;
+        } else if (speakSelectedIndex < 0) {
+          activeHighlight = null;
+          activeHighlightId = null;
         }
+        renderCardText();
+        // Marking words right may push score over the threshold later.
+        maybeSaveSpeakingBest(score);
       },
-      onReviewReady: () => {
-        revealAllHighlightsForSpeakReview();
+      onReviewClear: () => {
+        clearSpeakReviewOnCard();
+        renderCardText();
       },
-      onReviewClear: () => {},
       playModel: async ({ slow } = {}) => {
         const chunk = currentChunk();
         const media = ensureCardMedia(chunk);
@@ -2493,6 +3326,10 @@
         const highlight = (chunk.highlights || []).find((h) => {
           return item.start >= h.start_char && item.start < h.end_char;
         });
+        if (Number.isFinite(Number(item.start)) && Number.isFinite(Number(item.end))) {
+          playWordContext(item.start, item.end, { highlight });
+          return;
+        }
         if (highlight) playHighlightClip(highlight);
         else playFullCard({ startTimer: false });
       },
@@ -2501,14 +3338,46 @@
 
   if (textEl) {
     textEl.addEventListener("click", (event) => {
+      const speakToken = event.target.closest("[data-speak-index]");
+      if (speakToken && textEl.classList.contains("is-speak-review")) {
+        event.preventDefault();
+        event.stopPropagation();
+        const index = Number(speakToken.getAttribute("data-speak-index"));
+        if (!Number.isFinite(index) || !studySpeakApi || !studySpeakApi.selectIndex) return;
+        if (speakSelectedIndex === index) {
+          speakSelectedIndex = -1;
+          activeHighlight = null;
+          activeHighlightId = null;
+          renderCardText();
+        } else {
+          studySpeakApi.selectIndex(index);
+        }
+        return;
+      }
+
+      // Action buttons live inside word wraps — handle them before plain-word select.
       const playBtnEl = event.target.closest(".hl-play");
       if (playBtnEl) {
         event.preventDefault();
         event.stopPropagation();
-        const highlight = findHighlight(playBtnEl.dataset.id);
-        if (highlight) {
-          setActiveHighlight(highlight, { rerender: false });
-          playHighlightClip(highlight);
+        if (playBtnEl.disabled) return;
+        if (playBtnEl.dataset.id) {
+          const highlight = findHighlight(playBtnEl.dataset.id);
+          if (highlight) {
+            setActiveHighlight(highlight, { rerender: false });
+            playHighlightClip(highlight);
+          }
+        } else if (playBtnEl.dataset.wordStart != null && playBtnEl.dataset.wordEnd != null) {
+          const start = Number(playBtnEl.dataset.wordStart);
+          const end = Number(playBtnEl.dataset.wordEnd);
+          if (!textEl.classList.contains("is-speak-review")) {
+            activePlainWordKey = `${start}:${end}`;
+            activeHighlight = null;
+            activeHighlightId = null;
+            speakSelectedIndex = -1;
+            renderCardText();
+          }
+          playWordContext(start, end);
         }
         return;
       }
@@ -2541,12 +3410,62 @@
         return;
       }
 
+      const plainHit = event.target.closest(".study-hl-wrap.is-plain-word[data-word-start]");
+      if (plainHit && !textEl.classList.contains("is-speak-review")) {
+        // Ignore clicks on the popup chrome (only the word itself selects).
+        if (event.target.closest(".study-hl-pop")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setActivePlainWord(
+          Number(plainHit.dataset.wordStart),
+          Number(plainHit.dataset.wordEnd)
+        );
+        return;
+      }
+
       const wrap = event.target.closest(".study-hl-wrap");
-      const mark = event.target.closest("mark.study-mark");
-      if (!wrap || !mark) return;
+      if (!wrap) return;
       event.preventDefault();
       event.stopPropagation();
-      const id = Number(mark.dataset.id);
+
+      // During speak review, open Expected/Heard in the same pop.
+      if (textEl.classList.contains("is-speak-review")) {
+        const speakWrap = wrap.getAttribute("data-speak-wrap");
+        if (speakWrap != null && studySpeakApi && studySpeakApi.selectIndex) {
+          const idx = Number(speakWrap);
+          if (speakSelectedIndex === idx) {
+            speakSelectedIndex = -1;
+            activeHighlight = null;
+            activeHighlightId = null;
+            renderCardText();
+          } else if (Number.isFinite(idx)) {
+            studySpeakApi.selectIndex(idx);
+          }
+          return;
+        }
+        const id = Number(wrap.dataset.id);
+        const highlight = findHighlight(id);
+        if (!highlight) return;
+        const matchIndex = speakReviewItems.findIndex(
+          (item) =>
+            item &&
+            item.start < Number(highlight.end_char) &&
+            item.end > Number(highlight.start_char)
+        );
+        if (matchIndex >= 0 && studySpeakApi && studySpeakApi.selectIndex) {
+          if (speakSelectedIndex === matchIndex) {
+            speakSelectedIndex = -1;
+            activeHighlight = null;
+            activeHighlightId = null;
+            renderCardText();
+          } else {
+            studySpeakApi.selectIndex(matchIndex);
+          }
+          return;
+        }
+      }
+
+      const id = Number(wrap.dataset.id);
       const highlight = findHighlight(id);
       if (!highlight) return;
 
@@ -2558,7 +3477,7 @@
 
   // Close popup on outside click (ignore the same click that opened it)
   document.addEventListener("click", (event) => {
-    if (!activeHighlightId) return;
+    if (!activeHighlightId && speakSelectedIndex < 0 && !activePlainWordKey) return;
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     const inside = path.some(
       (node) =>
@@ -2574,6 +3493,8 @@
     ) {
       return;
     }
+    speakSelectedIndex = -1;
+    activePlainWordKey = null;
     setActiveHighlight(null, { rerender: true });
   });
 
@@ -2627,13 +3548,36 @@
 
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
-      if (index >= queue.length - 1) {
-        if (lesson.exit_url) window.location.href = lesson.exit_url;
-        return;
-      }
-      stopAudio();
-      index += 1;
-      renderCard();
+      requestNextCard();
+    });
+  }
+
+  if (levelGateLevels) {
+    levelGateLevels.addEventListener("click", async (event) => {
+      const btn = event.target.closest(".level-btn");
+      if (!btn || !levelGateOpen) return;
+      if (window.MvBusy && window.MvBusy.isBusy(btn)) return;
+      const ok = await saveLevel(Number(btn.dataset.level), btn);
+      if (!ok) return;
+      closeLevelGate();
+      goToNextCardOrFinish();
+    });
+  }
+
+  if (levelGateOk) {
+    levelGateOk.addEventListener("click", () => {
+      closeLevelGate();
+      goToNextCardOrFinish();
+    });
+  }
+
+  if (levelGateCancel) {
+    levelGateCancel.addEventListener("click", () => closeLevelGate());
+  }
+
+  if (levelGateModal) {
+    levelGateModal.querySelectorAll("[data-study-level-gate-close]").forEach((el) => {
+      el.addEventListener("click", () => closeLevelGate());
     });
   }
 

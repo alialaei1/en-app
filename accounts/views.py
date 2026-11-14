@@ -117,11 +117,13 @@ def account_home(request):
             "theme": "theme",
             "app_language": "app_language",
             "learning_language": "learning_language",
+            "native_language": "native_language",
         },
     )
     form.fields["theme"].help_text = t(lang, "theme_help")
     form.fields["app_language"].help_text = t(lang, "app_language_help")
     form.fields["learning_language"].help_text = t(lang, "learning_language_help")
+    form.fields["native_language"].help_text = t(lang, "native_language_help")
 
     if request.method == "POST" and form.is_valid():
         form.save()

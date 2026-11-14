@@ -344,6 +344,9 @@ class LessonChunk(OrderedModel):
     end_sec = models.FloatField(blank=True, null=True)
     # [{"word": "Hello", "start": 0.12, "end": 0.40}, ...] relative to this chunk's media
     word_timings = models.JSONField(default=list, blank=True)
+    # Plain-word meanings (not visual highlights):
+    # [{"text": "website", "meaning": "وب‌سایت", "start_char": 10, "end_char": 17}, ...]
+    word_meanings = models.JSONField(default=list, blank=True)
     # Legacy shared fields — learner progress lives on UserChunkStudyProgress.
     study_level = models.PositiveSmallIntegerField(
         blank=True,

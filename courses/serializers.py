@@ -45,6 +45,10 @@ def study_chunk_payload(chunk, *, study_level=None, best_type_ms=None, best_spea
     data["has_audio"] = bool(data.get("media_url"))
     data["has_video"] = data.get("media_kind") == "video"
     data["word_count"] = len((chunk.text or "").split())
+    # Needed client-side so any word (not only highlights) can play synced audio.
+    data["word_timings"] = list(chunk.word_timings or [])
+    # Persisted plain-word meanings (do not render as highlights).
+    data["word_meanings"] = list(chunk.word_meanings or [])
     return data
 
 
@@ -56,6 +60,8 @@ def study_lesson_payload(
     level_url_template: str = "",
     record_url_template: str = "",
     speak_url_template: str = "",
+    translate_word_url_template: str = "",
+    translate_sentence_url_template: str = "",
     settings_url: str = "",
 ) -> dict:
     from .models import (
@@ -96,15 +102,24 @@ def study_lesson_payload(
             if key in level_counts:
                 level_counts[key] += 1
 
+    native_language = "fa"
+    learning_language = "en"
     if user is not None and getattr(user, "is_authenticated", False):
-        from accounts.models import ensure_profile
+        from accounts.models import Profile, ensure_profile
 
+        profile = ensure_profile(user)
         settings_row = UserLessonStudySettings.for_user_lesson(user, lesson)
         settings_data = settings_row.get_settings()
-        profile_dock = ensure_profile(user).get_video_dock()
+        profile_dock = profile.get_video_dock()
         if profile_dock is not None:
             settings_data["video_dock"] = profile_dock
         user_id = user.pk
+        native_language = profile.native_language or Profile.NativeLanguage.FA
+        if native_language not in Profile.SUPPORTED_NATIVE_LANGUAGES:
+            native_language = Profile.NativeLanguage.FA
+        learning_language = profile.learning_language or Profile.LearningLanguage.EN
+        if learning_language not in Profile.SUPPORTED_LEARNING_LANGUAGES:
+            learning_language = Profile.LearningLanguage.EN
     else:
         settings_data = normalize_study_settings(None)
         user_id = None
@@ -117,8 +132,12 @@ def study_lesson_payload(
         "level_url_template": level_url_template,
         "record_url_template": record_url_template,
         "speak_url_template": speak_url_template,
+        "translate_word_url_template": translate_word_url_template,
+        "translate_sentence_url_template": translate_sentence_url_template,
         "settings_url": settings_url,
         "settings": settings_data,
+        "native_language": native_language,
+        "learning_language": learning_language,
         "total_cards": len(chunks),
         "level_counts": level_counts,
         "unrated_count": unrated,

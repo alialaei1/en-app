@@ -20,8 +20,13 @@ class Profile(models.Model):
         EN = "en", "English"
         # Future: more target languages
 
+    class NativeLanguage(models.TextChoices):
+        FA = "fa", "Persian (فارسی)"
+        # Future: more native languages for word/sentence translation
+
     SUPPORTED_APP_LANGUAGES = {AppLanguage.EN, AppLanguage.FA}
     SUPPORTED_LEARNING_LANGUAGES = {LearningLanguage.EN}
+    SUPPORTED_NATIVE_LANGUAGES = {NativeLanguage.FA}
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -47,6 +52,12 @@ class Profile(models.Model):
         choices=LearningLanguage.choices,
         default=LearningLanguage.EN,
         help_text="Language you are learning.",
+    )
+    native_language = models.CharField(
+        max_length=10,
+        choices=NativeLanguage.choices,
+        default=NativeLanguage.FA,
+        help_text="Your native language — used for word and sentence meanings.",
     )
     ui_prefs = models.JSONField(
         default=dict,

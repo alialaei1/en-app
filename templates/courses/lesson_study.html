@@ -127,55 +127,43 @@
         </div>
 
         <div class="study-timer-row">
-          <div>
-            <p class="study-timer-label">{{ ui.timer }}</p>
-            <p id="study-timer" class="study-timer-value">0.00s</p>
+          <div class="study-timer-main">
+            <div class="study-timer-clock">
+              <p class="study-timer-label">{{ ui.timer }}</p>
+              <p id="study-timer" class="study-timer-value">0.00s</p>
+            </div>
+            <div class="study-card-tools">
+              <button
+                type="button"
+                id="study-toggle-meaning"
+                class="study-icon-btn"
+                aria-pressed="false"
+                title="{{ ui.show_meaning }}"
+                aria-label="{{ ui.show_meaning }}"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                  <path d="M4 6.5h11a3 3 0 0 1 3 3V18l-4.2-2.4H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z" stroke-linejoin="round"/>
+                  <path d="M7 10.2h7M7 13h4.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                id="study-reveal-all"
+                class="study-icon-btn"
+                aria-pressed="false"
+                title="{{ ui.reveal_all_words }}"
+                aria-label="{{ ui.reveal_all_words }}"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                  <path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="2.6"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="study-timer-meta">
-            <p id="study-best-record">{{ ui.best_label_writing }}: —</p>
-            <p id="study-timer-status">{{ ui.waiting_play_meaning }}</p>
-          </div>
-          <div class="study-card-tools">
-            <button
-              type="button"
-              id="study-repeat-card"
-              class="study-icon-btn"
-              title="{{ ui.repeat_card }}"
-              aria-label="{{ ui.repeat_card }}"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-                <path d="M17.5 7.5A6.8 6.8 0 0 0 5.8 9.2" stroke-linecap="round"/>
-                <path d="M5.5 5.2v4.2h4.1" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M6.5 16.5a6.8 6.8 0 0 0 11.7-1.7" stroke-linecap="round"/>
-                <path d="M18.5 18.8v-4.2h-4.1" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-            <button
-              type="button"
-              id="study-toggle-meaning"
-              class="study-icon-btn"
-              aria-pressed="false"
-              title="{{ ui.show_meaning }}"
-              aria-label="{{ ui.show_meaning }}"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-                <path d="M4 6.5h11a3 3 0 0 1 3 3V18l-4.2-2.4H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z" stroke-linejoin="round"/>
-                <path d="M7 10.2h7M7 13h4.5" stroke-linecap="round"/>
-              </svg>
-            </button>
-            <button
-              type="button"
-              id="study-reveal-all"
-              class="study-icon-btn"
-              aria-pressed="false"
-              title="{{ ui.reveal_all_words }}"
-              aria-label="{{ ui.reveal_all_words }}"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-                <path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" stroke-linejoin="round"/>
-                <circle cx="12" cy="12" r="2.6"/>
-              </svg>
-            </button>
+            <p id="study-best-record" class="study-timer-best">{{ ui.best_label_writing }}: —</p>
+            <p id="study-timer-status" class="study-timer-status">{{ ui.waiting_type }}</p>
           </div>
         </div>
 
@@ -185,9 +173,18 @@
           dir="ltr"
         ></div>
 
-        <div class="study-media-actions">
+        <div class="study-media-actions has-reload" id="study-media-actions">
           <button type="button" id="study-play" class="study-btn study-btn-play">
             {{ ui.play_card }}
+          </button>
+          <button
+            type="button"
+            id="study-repeat-card"
+            class="study-btn study-btn-ghost study-btn-reload"
+            title="{{ ui.writing_clear_title }}"
+            aria-label="{{ ui.writing_clear_title }}"
+          >
+            {{ ui.writing_clear }}
           </button>
           <button type="button" id="study-pause" class="study-btn study-btn-pause" disabled>
             {{ ui.pause }}
@@ -216,10 +213,21 @@
             <button
               type="button"
               id="study-speech-btn"
-              class="study-speech-btn"
+              class="study-speech-btn is-start"
               title="{{ ui.speak_start_recording }}"
             >
-              <span id="study-speech-icon" aria-hidden="true" class="study-speech-dot"></span>
+              <span id="study-speech-icon" class="study-speech-ico" aria-hidden="true">
+                <svg class="study-speech-ico__start" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3Z" stroke-linejoin="round"/>
+                  <path d="M7 11.5a5 5 0 0 0 10 0M12 16.5v3.2M9.5 19.7h5" stroke-linecap="round"/>
+                </svg>
+                <svg class="study-speech-ico__again" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.5 7.5A6.8 6.8 0 0 0 5.8 9.2" stroke-linecap="round"/>
+                  <path d="M5.5 5.2v4.2h4.1" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M6.5 16.5a6.8 6.8 0 0 0 11.7-1.7" stroke-linecap="round"/>
+                  <path d="M18.5 18.8v-4.2h-4.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
               <span id="study-speech-label">{{ ui.speak_start_recording }}</span>
             </button>
           </div>
@@ -244,44 +252,54 @@
           <p id="study-speak-error" class="study-speak-error hidden" hidden></p>
 
           <div id="study-speak-result" class="study-speak-result hidden" hidden>
-            <div class="study-speak-result__head">
-              <div class="study-speak-result__title-row">
-                <p class="study-speak-result__title">{{ ui.speak_result_title }}</p>
-                <button
-                  type="button"
-                  id="study-speak-help-btn"
-                  class="study-speak-help-btn"
-                  aria-label="{{ ui.speak_help_title }}"
-                  title="{{ ui.speak_help_title }}"
-                >?</button>
-              </div>
+            <div class="study-speak-result__bar">
               <p id="study-speak-score" class="study-speak-result__score"></p>
+              <button
+                type="button"
+                id="study-speak-help-btn"
+                class="study-speak-help-btn"
+                aria-label="{{ ui.speak_help_title }}"
+                title="{{ ui.speak_help_title }}"
+              >?</button>
             </div>
-            <div id="study-speak-feedback" class="study-speak-feedback" dir="ltr"></div>
-            <p id="study-speak-word-detail" class="study-speak-word-detail hidden" hidden></p>
             <div class="study-speak-result__actions">
-              <button type="button" id="study-speak-play-mine" class="study-speak-action-btn">
-                {{ ui.speak_play_mine }}
+              <button type="button" id="study-speak-play-model" class="study-speak-action-btn is-play-card" title="{{ ui.speak_play_model_hint }}">
+                <span class="study-speak-action-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                    <rect x="3.5" y="5" width="11" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M16.2 9.2v5.6L20.2 12l-4-2.8Z" fill="currentColor"/>
+                  </svg>
+                </span>
+                <span class="study-speak-action-title">{{ ui.speak_play_model }}</span>
               </button>
-              <button type="button" id="study-speak-play-model" class="study-speak-action-btn">
-                {{ ui.speak_play_model }}
+              <button type="button" id="study-speak-play-slow" class="study-speak-action-btn is-play-slow" title="{{ ui.speak_play_slow_hint }}">
+                <span class="study-speak-action-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="8.2"/>
+                    <path d="M12 8.2v4.2l2.8 1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="study-speak-action-title">{{ ui.speak_play_slow }}</span>
               </button>
-              <button type="button" id="study-speak-play-slow" class="study-speak-action-btn">
-                {{ ui.speak_play_slow }}
+              <button type="button" id="study-speak-play-mine" class="study-speak-action-btn is-play-mine" title="{{ ui.speak_play_mine_hint }}">
+                <span class="study-speak-action-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 3.8a2.6 2.6 0 0 0-2.6 2.6v4.2a2.6 2.6 0 1 0 5.2 0V6.4A2.6 2.6 0 0 0 12 3.8Z" stroke-linejoin="round"/>
+                    <path d="M7.2 11.2a4.8 4.8 0 0 0 9.6 0M12 16v2.8" stroke-linecap="round"/>
+                  </svg>
+                </span>
+                <span class="study-speak-action-title">{{ ui.speak_play_mine }}</span>
               </button>
-              <button type="button" id="study-speak-mark-right" class="study-speak-action-btn" disabled>
-                {{ ui.speak_i_was_right }}
+              <button type="button" id="study-speak-mark-right" class="study-speak-action-btn is-mark-right" disabled title="{{ ui.speak_i_was_right_hint }}">
+                <span class="study-speak-action-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="8.2"/>
+                    <path d="M8.2 12.2 10.8 14.8 15.8 9.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="study-speak-action-title">{{ ui.speak_i_was_right }}</span>
               </button>
             </div>
-            <div id="study-speak-shadow" class="study-speak-shadow hidden" hidden>
-              <p class="study-speak-shadow__text">{{ ui.speak_shadow_hint }}</p>
-              <button type="button" id="study-speak-shadow-btn" class="study-speech-btn">
-                {{ ui.speak_shadow_again }}
-              </button>
-            </div>
-            <button type="button" id="study-speak-retry" class="study-speech-btn study-speak-retry">
-              {{ ui.speak_try_again }}
-            </button>
           </div>
         </div>
 
@@ -317,7 +335,36 @@
     >
       <p id="study-result-main" class="font-medium"></p>
       <p id="study-result-compare" class="mt-1"></p>
-      <p id="study-result-suggest" class="mt-2"></p>
+    </div>
+
+    <div
+      id="study-level-gate"
+      class="mv-confirm-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="study-level-gate-title"
+      aria-describedby="study-level-gate-message"
+      hidden
+    >
+      <button type="button" class="mv-confirm-backdrop" data-study-level-gate-close aria-label="{{ ui.cancel }}"></button>
+      <div class="mv-confirm-panel study-level-gate-panel"{% if ui_rtl %} dir="rtl" lang="fa"{% endif %}>
+        <h2 id="study-level-gate-title" class="mv-confirm-title">{{ ui.level_gate_title }}</h2>
+        <p id="study-level-gate-message" class="mv-confirm-message">{{ ui.level_gate_message }}</p>
+        <div
+          id="study-level-gate-levels"
+          class="study-levels study-level-gate-levels"
+          role="group"
+          aria-label="{{ ui.your_level }}"
+        ></div>
+        <div class="study-level-ends study-level-gate-ends" aria-hidden="true">
+          <span>1 · {{ ui.just_starting }}</span>
+          <span>7 · {{ ui.knows_very_well }}</span>
+        </div>
+        <div class="mv-confirm-actions study-level-gate-actions">
+          <button type="button" id="study-level-gate-cancel" class="mv-btn mv-btn-ghost">{{ ui.cancel }}</button>
+          <button type="button" id="study-level-gate-ok" class="mv-btn mv-btn-primary">{{ ui.level_gate_ok }}</button>
+        </div>
+      </div>
     </div>
 
     <div

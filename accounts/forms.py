@@ -177,6 +177,7 @@ class ProfileForm(forms.ModelForm):
             "theme",
             "app_language",
             "learning_language",
+            "native_language",
         ]
         labels = {
             "display_name": "Display name",
@@ -185,11 +186,13 @@ class ProfileForm(forms.ModelForm):
             "theme": "Theme",
             "app_language": "App language",
             "learning_language": "Learning language",
+            "native_language": "Native language",
         }
         help_texts = {
             "theme": "Dark, light, or follow your device.",
             "app_language": "Interface language: English or Persian.",
             "learning_language": "Language you study. Only English is available for now.",
+            "native_language": "Language for word and sentence meanings. Only Persian for now.",
         }
         widgets = {
             "display_name": forms.TextInput(
@@ -219,6 +222,7 @@ class ProfileForm(forms.ModelForm):
             "theme": forms.Select(attrs={"class": INPUT_CLASS}),
             "app_language": forms.Select(attrs={"class": INPUT_CLASS}),
             "learning_language": forms.Select(attrs={"class": INPUT_CLASS}),
+            "native_language": forms.Select(attrs={"class": INPUT_CLASS}),
         }
 
     def __init__(self, *args, user=None, limits=None, lang=None, **kwargs):
@@ -263,6 +267,12 @@ class ProfileForm(forms.ModelForm):
         value = self.cleaned_data["learning_language"]
         if value not in Profile.SUPPORTED_LEARNING_LANGUAGES:
             raise forms.ValidationError("This learning language is not supported yet.")
+        return value
+
+    def clean_native_language(self):
+        value = self.cleaned_data["native_language"]
+        if value not in Profile.SUPPORTED_NATIVE_LANGUAGES:
+            raise forms.ValidationError("This native language is not supported yet.")
         return value
 
 

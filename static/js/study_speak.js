@@ -10,16 +10,11 @@
       startBtn: document.getElementById("study-speech-btn"),
       startLabel: document.getElementById("study-speech-label"),
       result: document.getElementById("study-speak-result"),
-      feedback: document.getElementById("study-speak-feedback"),
       score: document.getElementById("study-speak-score"),
-      detail: document.getElementById("study-speak-word-detail"),
       playMine: document.getElementById("study-speak-play-mine"),
       playModel: document.getElementById("study-speak-play-model"),
       playSlow: document.getElementById("study-speak-play-slow"),
       markRight: document.getElementById("study-speak-mark-right"),
-      shadowWrap: document.getElementById("study-speak-shadow"),
-      shadowBtn: document.getElementById("study-speak-shadow-btn"),
-      retryBtn: document.getElementById("study-speak-retry"),
       thresholdInput: document.getElementById("setting-speak-threshold"),
       thresholdLabel: document.getElementById("setting-speak-threshold-label"),
       errorBox: document.getElementById("study-speak-error"),
@@ -90,19 +85,23 @@
       els.errorBox.setAttribute("hidden", "");
     }
 
+    function setStartLabel(again) {
+      const label = again
+        ? t("speak_start_again", "Start again")
+        : t("speak_start_recording", "Start");
+      if (els.startLabel) els.startLabel.textContent = label;
+      if (els.startBtn) {
+        els.startBtn.title = label;
+        els.startBtn.setAttribute("aria-label", label);
+        els.startBtn.classList.toggle("is-again", Boolean(again));
+        els.startBtn.classList.toggle("is-start", !again);
+      }
+    }
+
     function hideResult() {
       if (!els.result) return;
       els.result.classList.add("hidden");
       els.result.setAttribute("hidden", "");
-      if (els.detail) {
-        els.detail.classList.add("hidden");
-        els.detail.setAttribute("hidden", "");
-        els.detail.textContent = "";
-      }
-      if (els.shadowWrap) {
-        els.shadowWrap.classList.add("hidden");
-        els.shadowWrap.setAttribute("hidden", "");
-      }
       if (els.markRight) els.markRight.disabled = true;
       selectedIndex = -1;
       alignments = [];
@@ -113,6 +112,7 @@
       if (!els.result) return;
       els.result.classList.remove("hidden");
       els.result.removeAttribute("hidden");
+      setStartLabel(true);
     }
 
     function clearPhaseTimer() {
@@ -280,49 +280,13 @@
       return Math.round((points / items.length) * 100);
     }
 
-    function statusIcon(status) {
-      if (status === "ok") return "✓";
-      if (status === "near") return "~";
-      if (status === "missing") return "–";
-      return "✕";
-    }
-
     function renderFeedback() {
-      if (!els.feedback) return;
-      els.feedback.innerHTML = alignments
-        .map((item, index) => {
-          const status = item.forcedOk ? "ok" : item.status;
-          const cls =
-            status === "ok"
-              ? "is-ok"
-              : status === "near"
-                ? "is-near"
-                : status === "missing"
-                  ? "is-missing"
-                  : "is-bad";
-          const selected = index === selectedIndex ? " is-selected" : "";
-          const label = status === "missing" ? item.expected : item.expected;
-          return (
-            `<button type="button" class="study-speak-token ${cls}${selected}" data-speak-index="${index}">` +
-            `<span>${escapeHtml(label)}</span>` +
-            `<span class="study-speak-token__mark" aria-hidden="true">${statusIcon(status)}</span>` +
-            `</button>`
-          );
-        })
-        .join("");
-
       const score = scoreAlignments(alignments);
       if (els.score) {
         els.score.textContent = t("speak_score_label", "Score {score}%", { score });
       }
-      if (els.shadowWrap) {
-        const showShadow = score < threshold();
-        els.shadowWrap.classList.toggle("hidden", !showShadow);
-        if (showShadow) els.shadowWrap.removeAttribute("hidden");
-        else els.shadowWrap.setAttribute("hidden", "");
-      }
       if (api.onReviewReady) {
-        api.onReviewReady(alignments, score);
+        api.onReviewReady(alignments, score, selectedIndex);
       }
     }
 
@@ -335,17 +299,11 @@
     }
 
     function selectToken(index) {
-      selectedIndex = index;
       const item = alignments[index];
-      if (!item || !els.detail) return;
-      const heard = item.heard || t("speak_missing", "(missing)");
-      els.detail.textContent = t("speak_expected_heard", "Expected: {expected} | Heard: {heard}", {
-        expected: item.expected,
-        heard,
-      });
-      els.detail.classList.remove("hidden");
-      els.detail.removeAttribute("hidden");
+      if (!item) return;
+      selectedIndex = index;
       if (els.markRight) {
+        // Perfect matches cannot be "marked right" again.
         els.markRight.disabled = item.forcedOk || item.status === "ok";
       }
       renderFeedback();
@@ -584,7 +542,9 @@
         closeOverlay();
         showResult();
         renderFeedback();
-        if (api.onComplete) api.onComplete(transcript, alignments);
+        if (api.onComplete) {
+          api.onComplete(transcript, alignments, scoreAlignments(alignments));
+        }
       } catch (err) {
         closeOverlay();
         showError(
@@ -701,6 +661,7 @@
       revokeMineUrl();
       recordedBlob = null;
       busy = false;
+      setStartLabel(false);
     }
 
     if (els.startBtn) {
@@ -715,30 +676,6 @@
         if (!busy) return;
         if (window.MvBusy && window.MvBusy.isBusy(els.endBtn)) return;
         finishSession();
-      });
-    }
-    if (els.retryBtn) {
-      els.retryBtn.addEventListener("click", (event) => {
-        event.preventDefault();
-        startSession(els.retryBtn);
-      });
-    }
-    if (els.shadowBtn) {
-      els.shadowBtn.addEventListener("click", async (event) => {
-        event.preventDefault();
-        if (window.MvBusy && window.MvBusy.isBusy(els.shadowBtn)) return;
-        if (window.MvBusy) {
-          window.MvBusy.lock(els.shadowBtn, { label: t("loading", "Loading…") });
-        }
-        try {
-          if (api.playModel) await api.playModel({ slow: false });
-          window.setTimeout(() => {
-            if (window.MvBusy) window.MvBusy.unlock(els.shadowBtn);
-            startSession(els.startBtn || els.retryBtn || els.shadowBtn);
-          }, 350);
-        } catch (_) {
-          if (window.MvBusy) window.MvBusy.unlock(els.shadowBtn);
-        }
       });
     }
     if (els.playMine) {
@@ -766,18 +703,6 @@
         alignments[selectedIndex].forcedOk = true;
         els.markRight.disabled = true;
         renderFeedback();
-      });
-    }
-    if (els.feedback) {
-      els.feedback.addEventListener("click", (event) => {
-        const btn = event.target.closest("[data-speak-index]");
-        if (!btn) return;
-        const index = Number(btn.getAttribute("data-speak-index"));
-        if (!Number.isFinite(index)) return;
-        const item = alignments[index];
-        if (!item) return;
-        if (item.status === "ok" && !item.forcedOk) return;
-        selectToken(index);
       });
     }
     if (els.helpBtn) {
@@ -816,6 +741,7 @@
       reset,
       hideResult,
       syncThresholdUi,
+      selectIndex: selectToken,
       isBusy: () => busy,
     };
   }

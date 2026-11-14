@@ -1311,6 +1311,12 @@ def lesson_study(request, pk):
     speak_url_template = reverse("chunk_speak_transcribe", kwargs={"pk": 999999999}).replace(
         "999999999", "{id}"
     )
+    translate_word_url_template = reverse(
+        "chunk_translate_word", kwargs={"pk": 999999999}
+    ).replace("999999999", "{id}")
+    translate_sentence_url_template = reverse(
+        "chunk_translate_sentence", kwargs={"pk": 999999999}
+    ).replace("999999999", "{id}")
     payload = study_lesson_payload(
         lesson,
         user=request.user,
@@ -1318,6 +1324,8 @@ def lesson_study(request, pk):
         level_url_template=level_url_template,
         record_url_template=record_url_template,
         speak_url_template=speak_url_template,
+        translate_word_url_template=translate_word_url_template,
+        translate_sentence_url_template=translate_sentence_url_template,
         settings_url=reverse("lesson_study_settings", kwargs={"pk": lesson.pk}),
     )
     return render(
@@ -1548,6 +1556,291 @@ def chunk_study_record(request, pk):
         return JsonResponse({"ok": True, "chunk_id": chunk.pk, **result})
     messages.success(request, t(request_app_lang(request), "typing_time_saved"))
     return redirect("lesson_study", pk=chunk.lesson_id)
+
+
+def _parse_json_body(request) -> dict:
+    if request.content_type and "application/json" in request.content_type:
+        try:
+            raw = json.loads(request.body.decode("utf-8") or "{}")
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return {}
+        return raw if isinstance(raw, dict) else {}
+    return {}
+
+
+def _profile_translate_langs(user) -> tuple[str, str]:
+    from accounts.models import Profile, ensure_profile
+
+    profile = ensure_profile(user)
+    source = profile.learning_language or Profile.LearningLanguage.EN
+    target = profile.native_language or Profile.NativeLanguage.FA
+    if source not in Profile.SUPPORTED_LEARNING_LANGUAGES:
+        source = Profile.LearningLanguage.EN
+    if target not in Profile.SUPPORTED_NATIVE_LANGUAGES:
+        target = Profile.NativeLanguage.FA
+    return source, target
+
+
+def _translate_error_response(request, exc):
+    from accounts.ui_i18n import request_app_lang, t
+
+    from .services.translate import (
+        TranslateError,
+        TranslateInvalidError,
+        TranslateNotFoundError,
+    )
+
+    lang = request_app_lang(request)
+    if isinstance(exc, TranslateInvalidError):
+        code = "translate_invalid"
+        status = 400
+    elif isinstance(exc, TranslateNotFoundError):
+        code = "translate_not_found"
+        status = 404
+    elif isinstance(exc, TranslateError):
+        code = getattr(exc, "code", None) or "translate_failed"
+        status = 503
+    else:
+        code = "translate_failed"
+        status = 503
+    return JsonResponse(
+        {"ok": False, "error": t(lang, code), "code": code},
+        status=status,
+    )
+
+
+@login_required
+@require_POST
+def chunk_translate_sentence(request, pk):
+    """Fill empty chunk.sentence_meaning via native-language translation."""
+    from accounts.limits import get_limits_for_user
+    from accounts.ui_i18n import request_app_lang, t
+
+    from .services.translate import TranslateError, translate_text
+
+    chunk = get_object_or_404(
+        LessonChunk.objects.select_related("lesson__section__course"),
+        pk=pk,
+    )
+    require_course_study(request.user, chunk.lesson.section.course)
+
+    existing = (chunk.sentence_meaning or "").strip()
+    if existing:
+        return JsonResponse({"ok": True, "meaning": existing, "cached": True, "chunk_id": chunk.pk})
+
+    source_text = (chunk.text or "").strip()
+    if not source_text:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": t(request_app_lang(request), "translate_invalid"),
+                "code": "translate_invalid",
+            },
+            status=400,
+        )
+
+    limits = get_limits_for_user(request.user)
+    source_lang, target_lang = _profile_translate_langs(request.user)
+    try:
+        meaning = translate_text(
+            source_text,
+            source=source_lang,
+            target=target_lang,
+            max_len=limits.sentence_meaning_max,
+        )
+    except TranslateError as exc:
+        return _translate_error_response(request, exc)
+
+    chunk.sentence_meaning = meaning
+    chunk.save(update_fields=["sentence_meaning", "updated_at"])
+    return JsonResponse(
+        {
+            "ok": True,
+            "meaning": meaning,
+            "cached": False,
+            "chunk_id": chunk.pk,
+        }
+    )
+
+
+@login_required
+@require_POST
+def chunk_translate_word(request, pk):
+    """Fill empty highlight meaning, or translate a plain word without creating a highlight."""
+    from accounts.limits import get_limits_for_user
+    from accounts.ui_i18n import request_app_lang, t
+
+    from .services.translate import TranslateError, translate_text
+
+    chunk = get_object_or_404(
+        LessonChunk.objects.select_related("lesson__section__course").prefetch_related(
+            "highlights"
+        ),
+        pk=pk,
+    )
+    require_course_study(request.user, chunk.lesson.section.course)
+
+    payload = _parse_json_body(request)
+    highlight_id = payload.get("highlight_id") or request.POST.get("highlight_id")
+    highlight = None
+    start = None
+    end = None
+    if highlight_id not in (None, ""):
+        try:
+            highlight = chunk.highlights.get(pk=int(highlight_id))
+        except (TypeError, ValueError, ChunkHighlight.DoesNotExist):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": t(request_app_lang(request), "translate_invalid"),
+                    "code": "translate_invalid",
+                },
+                status=400,
+            )
+        existing = (highlight.meaning or "").strip()
+        if existing:
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "meaning": existing,
+                    "cached": True,
+                    "highlight": highlight_payload(highlight),
+                    "chunk_id": chunk.pk,
+                }
+            )
+        source_text = (highlight.text or chunk.text[highlight.start_char : highlight.end_char]).strip()
+    else:
+        try:
+            start = int(payload.get("start_char", request.POST.get("start_char")))
+            end = int(payload.get("end_char", request.POST.get("end_char")))
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": t(request_app_lang(request), "translate_invalid"),
+                    "code": "translate_invalid",
+                },
+                status=400,
+            )
+        text_len = len(chunk.text or "")
+        if start < 0 or end <= start or end > text_len:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": t(request_app_lang(request), "translate_invalid"),
+                    "code": "translate_invalid",
+                },
+                status=400,
+            )
+        selected = (chunk.text or "")[start:end]
+        source_text = selected.strip()
+        if not source_text:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": t(request_app_lang(request), "translate_invalid"),
+                    "code": "translate_invalid",
+                },
+                status=400,
+            )
+        # Already saved as a plain-word meaning (not a highlight).
+        for row in chunk.word_meanings or []:
+            if not isinstance(row, dict):
+                continue
+            if int(row.get("start_char", -1)) != start or int(row.get("end_char", -1)) != end:
+                continue
+            existing = (row.get("meaning") or "").strip()
+            if existing:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "meaning": existing,
+                        "cached": True,
+                        "start_char": start,
+                        "end_char": end,
+                        "word_meaning": row,
+                        "chunk_id": chunk.pk,
+                    }
+                )
+            break
+        # If this span already belongs to a highlight, reuse/fill that meaning —
+        # but never create a new highlight for a plain-word tap.
+        for item in chunk.highlights.all():
+            if item.end_char <= start or item.start_char >= end:
+                continue
+            existing = (item.meaning or "").strip()
+            if existing:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "meaning": existing,
+                        "cached": True,
+                        "start_char": start,
+                        "end_char": end,
+                        "chunk_id": chunk.pk,
+                    }
+                )
+            highlight = item
+            source_text = (item.text or source_text).strip()
+            break
+
+    limits = get_limits_for_user(request.user)
+    source_lang, target_lang = _profile_translate_langs(request.user)
+    try:
+        meaning = translate_text(
+            source_text,
+            source=source_lang,
+            target=target_lang,
+            max_len=limits.highlight_meaning_max,
+        )
+    except TranslateError as exc:
+        return _translate_error_response(request, exc)
+
+    if highlight is not None:
+        highlight.meaning = meaning
+        highlight.save(update_fields=["meaning"])
+        return JsonResponse(
+            {
+                "ok": True,
+                "meaning": meaning,
+                "cached": False,
+                "highlight": highlight_payload(highlight),
+                "chunk_id": chunk.pk,
+            }
+        )
+
+    # Persist plain-word meaning without creating a visual highlight.
+    rows = list(chunk.word_meanings or [])
+    entry = {
+        "text": source_text[:255],
+        "meaning": meaning,
+        "start_char": int(start),
+        "end_char": int(end),
+    }
+    replaced = False
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        if int(row.get("start_char", -1)) == int(start) and int(row.get("end_char", -1)) == int(end):
+            rows[index] = {**row, **entry}
+            replaced = True
+            break
+    if not replaced:
+        rows.append(entry)
+    chunk.word_meanings = rows
+    chunk.save(update_fields=["word_meanings", "updated_at"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "meaning": meaning,
+            "cached": False,
+            "start_char": start,
+            "end_char": end,
+            "word_meaning": entry,
+            "chunk_id": chunk.pk,
+        }
+    )
 
 
 @login_required

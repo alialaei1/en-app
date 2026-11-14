@@ -88,6 +88,16 @@ urlpatterns = [
         name="chunk_speak_transcribe",
     ),
     path(
+        "chunks/<int:pk>/translate-word/",
+        views.chunk_translate_word,
+        name="chunk_translate_word",
+    ),
+    path(
+        "chunks/<int:pk>/translate-sentence/",
+        views.chunk_translate_sentence,
+        name="chunk_translate_sentence",
+    ),
+    path(
         "lessons/<int:lesson_pk>/chunks/bulk-delete/",
         views.chunk_bulk_delete,
         name="chunk_bulk_delete",
