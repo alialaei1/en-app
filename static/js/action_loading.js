@@ -42,7 +42,19 @@
       el.classList.contains("mv-course-cover") ||
       el.classList.contains("mv-course-cover-square") ||
       el.classList.contains("mv-course-thumb") ||
+      el.classList.contains("mv-course-row-stretch") ||
       el.closest(".mv-course-tile, .mv-course-row, .mv-explore-row") != null
+    );
+  }
+
+  function isChromeNavLink(link) {
+    if (!link) return false;
+    return (
+      link.classList.contains("mv-nav-item") ||
+      link.classList.contains("mv-desk-link") ||
+      (link.classList.contains("mv-icon-btn") &&
+        link.closest("header, nav, .mv-bottom-nav, .mv-topbar, .mv-desk-nav") !=
+          null)
     );
   }
 
@@ -75,6 +87,7 @@
     opts = opts || {};
     if (!el) return el;
     if (el.dataset && el.dataset.mvBusySkip === "1") return el;
+    if (el.hasAttribute && el.hasAttribute("data-mv-busy-skip")) return el;
     if (isBusy(el) && !opts.force) return el;
 
     freezeSize(el);
@@ -103,7 +116,6 @@
     // Keep the original label/content so layout width/height stay stable.
     // CSS fades the text and shows a spinner on top.
     if (el.tagName === "INPUT") {
-      // Keep the same value — do not swap to a longer "Working…" string.
       return el;
     }
     el.classList.add("is-busy-keep");
@@ -132,12 +144,22 @@
     return el;
   }
 
+  function clearCourseNavigating(root) {
+    (root || document)
+      .querySelectorAll(".is-navigating")
+      .forEach(function (el) {
+        el.classList.remove("is-navigating");
+        el.removeAttribute("aria-busy");
+      });
+  }
+
   function unlockAll(root) {
     (root || document)
       .querySelectorAll('[data-mv-busy="1"]')
       .forEach(function (el) {
         unlock(el);
       });
+    clearCourseNavigating(root);
     hidePageBusy();
   }
 
@@ -245,27 +267,77 @@
     }
   }
 
-  function isAppNavigationLink(link) {
+  function isInternalAppLink(link) {
     if (!link || link.tagName !== "A") return false;
     if (isIgnoredNavLink(link)) return false;
-    return Boolean(
-      link.classList.contains("mv-nav-item") ||
-        link.classList.contains("mv-desk-link") ||
-        link.classList.contains("mv-icon-btn") ||
-        link.classList.contains("mv-btn") ||
-        link.classList.contains("mv-course-cover") ||
-        link.classList.contains("mv-course-cover-square") ||
-        link.classList.contains("mv-course-thumb") ||
-        link.hasAttribute("data-mv-busy") ||
-        link.hasAttribute("data-mv-nav") ||
-        link.closest(".mv-course-tile, .mv-course-row, .mv-explore-row, .mv-card-interactive")
+    try {
+      var url = new URL(link.href, window.location.href);
+      return url.origin === window.location.origin;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function getCourseCardForNavigation(link) {
+    if (!link) return null;
+    if (link.classList.contains("mv-course-row-nested")) return null;
+    var card = link.closest(
+      ".mv-course-tile, .mv-course-row, .mv-explore-row"
     );
+    if (!card) return null;
+
+    if (
+      link.classList.contains("mv-course-cover") ||
+      link.classList.contains("mv-course-cover-square") ||
+      link.classList.contains("mv-course-row-stretch") ||
+      link.classList.contains("mv-course-thumb") ||
+      link.classList.contains("mv-btn")
+    ) {
+      return card;
+    }
+
+    var primary = card.querySelector(
+      "a.mv-course-cover, a.mv-course-cover-square, a.mv-course-row-stretch"
+    );
+    if (primary && link.href === primary.href) return card;
+    return null;
+  }
+
+  function markCourseNavigating(card) {
+    if (!card) return;
+    card.classList.add("is-navigating");
+    card.setAttribute("aria-busy", "true");
   }
 
   function beginNavigation(link) {
     if (!link || isSamePageNavigation(link)) return;
-    // Page-level loading only — do not put spinners on nav/page buttons.
+
     showPageBusy();
+
+    var card = getCourseCardForNavigation(link);
+    if (card) {
+      markCourseNavigating(card);
+    }
+
+    // Bottom/top chrome: page overlay only (no spinner on the nav item).
+    if (isChromeNavLink(link)) return;
+
+    // Action links (Study, Open, Edit, …): keep label size + spinner on button.
+    if (
+      link.classList.contains("mv-btn") ||
+      link.classList.contains("level-btn") ||
+      link.hasAttribute("data-mv-busy") ||
+      link.hasAttribute("data-mv-nav")
+    ) {
+      lock(link);
+      return;
+    }
+
+    // Course cover/title open: card spinner is enough.
+    if (card) return;
+
+    // Other in-app links: still lock lightly so something reacts on the control.
+    lock(link, { overlayOnly: true });
   }
 
   window.MvBusy = {
@@ -278,9 +350,10 @@
     showPageBusy: showPageBusy,
     hidePageBusy: hidePageBusy,
     beginNavigation: beginNavigation,
+    defaultLabel: defaultLabel,
   };
 
-  // Native form posts (login, enroll, delete, …): lock submit controls.
+  // Native form posts (login, enroll, delete, …): lock submit controls + page busy.
   document.addEventListener(
     "submit",
     function (event) {
@@ -296,19 +369,29 @@
           form.getAttribute("data-mv-busy-label") ||
           t("working", "Working…"),
       });
+
+      // If enroll/open lives on a course card, dim that card too.
+      var card =
+        (submitter &&
+          submitter.closest(
+            ".mv-course-tile, .mv-course-row, .mv-explore-row"
+          )) ||
+        form.closest(".mv-course-tile, .mv-course-row, .mv-explore-row");
+      if (card) markCourseNavigating(card);
     },
     false
   );
 
-  // App navigation + course cards + primary action links.
+  // Any same-origin app link: page loading (+ card/button feedback).
   document.addEventListener(
     "click",
     function (event) {
       if (event.defaultPrevented) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+        return;
       if (event.button != null && event.button !== 0) return;
       var link = event.target.closest("a[href]");
-      if (!isAppNavigationLink(link)) return;
+      if (!isInternalAppLink(link)) return;
       beginNavigation(link);
     },
     true
@@ -343,5 +426,6 @@
   document.addEventListener("DOMContentLoaded", function () {
     ensurePageBusyEl();
     hidePageBusy();
+    clearCourseNavigating(document);
   });
 })();

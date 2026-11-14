@@ -841,8 +841,16 @@ html.is-page-busy body {
   flex: 0 0 auto;
 }
 
+/* Generic overlay busy (links that keep their own content). */
+a.is-busy-overlay:not(.mv-nav-item):not(.mv-desk-link):not(.mv-icon-btn):not(.mv-course-cover):not(.mv-course-cover-square) {
+  position: relative;
+  opacity: 0.78;
+  pointer-events: none;
+}
+
 .mv-course-tile.is-navigating,
 .mv-course-row.is-navigating,
+.mv-explore-row.is-navigating,
 .mv-card-interactive.is-navigating {
   position: relative;
   pointer-events: none;
@@ -850,6 +858,7 @@ html.is-page-busy body {
 
 .mv-course-tile.is-navigating::after,
 .mv-course-row.is-navigating::after,
+.mv-explore-row.is-navigating::after,
 .mv-card-interactive.is-navigating::after,
 a.mv-course-cover-square.is-busy-overlay::after,
 a.mv-course-cover.is-busy-overlay::after {
@@ -864,6 +873,7 @@ a.mv-course-cover.is-busy-overlay::after {
 
 .mv-course-tile.is-navigating::before,
 .mv-course-row.is-navigating::before,
+.mv-explore-row.is-navigating::before,
 .mv-card-interactive.is-navigating::before,
 a.mv-course-cover-square.is-busy-overlay::before,
 a.mv-course-cover.is-busy-overlay::before {
