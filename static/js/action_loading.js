@@ -195,7 +195,7 @@
     return el;
   }
 
-  function showPageBusy(sourceEl) {
+  function showPageBusy() {
     var el = ensurePageBusyEl();
     var text = el.querySelector(".mv-page-busy__text");
     if (text) text.textContent = t("loading", "Loading…");
@@ -203,13 +203,6 @@
     el.setAttribute("aria-hidden", "false");
     document.documentElement.classList.add("is-page-busy");
     document.body.classList.add("is-page-busy");
-    if (sourceEl) {
-      sourceEl.classList.add("is-nav-source");
-      var card = sourceEl.closest(
-        ".mv-course-tile, .mv-course-row, .mv-explore-row, .mv-card-interactive"
-      );
-      if (card) card.classList.add("is-navigating");
-    }
   }
 
   function hidePageBusy() {
@@ -220,12 +213,6 @@
     }
     document.documentElement.classList.remove("is-page-busy");
     document.body.classList.remove("is-page-busy");
-    document.querySelectorAll(".is-nav-source").forEach(function (node) {
-      node.classList.remove("is-nav-source");
-    });
-    document.querySelectorAll(".is-navigating").forEach(function (node) {
-      node.classList.remove("is-navigating");
-    });
   }
 
   function isIgnoredNavLink(link) {
@@ -274,11 +261,8 @@
 
   function beginNavigation(link) {
     if (!link || isSamePageNavigation(link)) return;
-    showPageBusy(link);
-    lock(link, {
-      overlayOnly: prefersOverlayOnly(link),
-      label: link.getAttribute("data-mv-busy-label") || t("loading", "Loading…"),
-    });
+    // Page-level loading only — do not put spinners on nav/page buttons.
+    showPageBusy();
   }
 
   window.MvBusy = {
@@ -302,7 +286,7 @@
       if (form.hasAttribute("data-mv-busy-skip")) return;
       if (event.defaultPrevented) return;
       var submitter = event.submitter || null;
-      showPageBusy(submitter || form);
+      showPageBusy();
       lockForm(form, submitter, {
         label:
           (submitter && submitter.getAttribute("data-mv-busy-label")) ||
