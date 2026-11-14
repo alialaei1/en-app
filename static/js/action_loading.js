@@ -46,12 +46,38 @@
     );
   }
 
+  function freezeSize(el) {
+    if (!el || !el.getBoundingClientRect) return;
+    var rect = el.getBoundingClientRect();
+    if (rect.width > 0) {
+      el.style.minWidth = Math.ceil(rect.width) + "px";
+      el.dataset.mvBusyMinWidth = "1";
+    }
+    if (rect.height > 0) {
+      el.style.minHeight = Math.ceil(rect.height) + "px";
+      el.dataset.mvBusyMinHeight = "1";
+    }
+  }
+
+  function unfreezeSize(el) {
+    if (!el) return;
+    if (el.dataset.mvBusyMinWidth) {
+      el.style.minWidth = "";
+      delete el.dataset.mvBusyMinWidth;
+    }
+    if (el.dataset.mvBusyMinHeight) {
+      el.style.minHeight = "";
+      delete el.dataset.mvBusyMinHeight;
+    }
+  }
+
   function lock(el, opts) {
     opts = opts || {};
     if (!el) return el;
     if (el.dataset && el.dataset.mvBusySkip === "1") return el;
     if (isBusy(el) && !opts.force) return el;
 
+    freezeSize(el);
     el.dataset.mvBusy = "1";
     if ("disabled" in el) {
       el.dataset.mvBusyWasDisabled = el.disabled ? "1" : "0";
@@ -74,45 +100,19 @@
       return el;
     }
 
-    var label = opts.label != null ? opts.label : defaultLabel(el);
-    var keepLabel = opts.keepLabel === true || el.getAttribute("data-mv-busy-keep-label") === "1";
-
-    // <input type="submit|button"> cannot host HTML spinner.
+    // Keep the original label/content so layout width/height stay stable.
+    // CSS fades the text and shows a spinner on top.
     if (el.tagName === "INPUT") {
-      el.dataset.mvBusyValue = el.value || "";
-      el.value = keepLabel ? el.value || label : label;
+      // Keep the same value — do not swap to a longer "Working…" string.
       return el;
     }
-
-    el.dataset.mvBusyHtml = el.innerHTML;
-    var showLabel = keepLabel
-      ? (el.textContent || "").trim() || label
-      : label;
-    // Icon-only / compact controls: spinner only.
-    if (
-      el.classList.contains("study-icon-btn") ||
-      el.classList.contains("mv-icon-btn") ||
-      el.classList.contains("mv-search-submit")
-    ) {
-      showLabel = "";
-    }
-    el.innerHTML =
-      '<span class="mv-busy-spin" aria-hidden="true"></span>' +
-      (showLabel
-        ? '<span class="mv-busy-text">' + escapeHtml(showLabel) + "</span>"
-        : "");
+    el.classList.add("is-busy-keep");
     return el;
   }
 
   function unlock(el) {
     if (!el || !isBusy(el)) return el;
-    if (el.tagName === "INPUT") {
-      if (el.dataset.mvBusyValue != null) el.value = el.dataset.mvBusyValue;
-      delete el.dataset.mvBusyValue;
-    } else if (el.dataset.mvBusyHtml != null) {
-      el.innerHTML = el.dataset.mvBusyHtml;
-      delete el.dataset.mvBusyHtml;
-    }
+    unfreezeSize(el);
     if ("disabled" in el) {
       el.disabled = el.dataset.mvBusyWasDisabled === "1";
     }
@@ -123,9 +123,12 @@
     el.removeAttribute("aria-busy");
     el.classList.remove("is-busy");
     el.classList.remove("is-busy-overlay");
+    el.classList.remove("is-busy-keep");
     delete el.dataset.mvBusy;
     delete el.dataset.mvBusyWasDisabled;
     delete el.dataset.mvBusyHref;
+    delete el.dataset.mvBusyHtml;
+    delete el.dataset.mvBusyValue;
     return el;
   }
 

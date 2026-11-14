@@ -933,14 +933,10 @@ a.is-busy,
 .level-btn.is-busy,
 .mv-search-submit.is-busy,
 .mv-desk-link.is-busy,
-.mv-chip.is-busy {
+.mv-chip.is-busy,
+input.is-busy {
   pointer-events: none;
   cursor: wait;
-  opacity: 0.85;
-  gap: 0.45rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 a.is-busy-link {
@@ -951,15 +947,77 @@ form.is-busy-form {
   cursor: wait;
 }
 
-.study-icon-btn.is-busy,
-.mv-icon-btn.is-busy {
-  gap: 0;
+/* Keep original label; fade it and show a centered spinner without resizing. */
+button.is-busy-keep,
+a.is-busy-keep,
+.mv-btn.is-busy-keep,
+.study-btn.is-busy-keep,
+.study-speech-btn.is-busy-keep,
+.study-speak-action-btn.is-busy-keep,
+.study-speak-end-btn.is-busy-keep,
+.study-setup-start-btn.is-busy-keep,
+.study-setup-mini-btn.is-busy-keep,
+.level-btn.is-busy-keep,
+.mv-search-submit.is-busy-keep,
+.mv-chip.is-busy-keep {
+  position: relative;
+  overflow: hidden;
 }
 
-.study-icon-btn.is-busy .mv-busy-spin,
-.mv-icon-btn.is-busy .mv-busy-spin {
-  width: 0.85rem;
-  height: 0.85rem;
+button.is-busy-keep::before,
+a.is-busy-keep::before,
+.mv-btn.is-busy-keep::before,
+.study-btn.is-busy-keep::before,
+.study-speech-btn.is-busy-keep::before,
+.study-speak-action-btn.is-busy-keep::before,
+.study-speak-end-btn.is-busy-keep::before,
+.study-setup-start-btn.is-busy-keep::before,
+.study-setup-mini-btn.is-busy-keep::before,
+.level-btn.is-busy-keep::before,
+.mv-search-submit.is-busy-keep::before,
+.mv-chip.is-busy-keep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+button.is-busy-keep::after,
+a.is-busy-keep::after,
+.mv-btn.is-busy-keep::after,
+.study-btn.is-busy-keep::after,
+.study-speech-btn.is-busy-keep::after,
+.study-speak-action-btn.is-busy-keep::after,
+.study-speak-end-btn.is-busy-keep::after,
+.study-setup-start-btn.is-busy-keep::after,
+.study-setup-mini-btn.is-busy-keep::after,
+.level-btn.is-busy-keep::after,
+.mv-search-submit.is-busy-keep::after,
+.mv-chip.is-busy-keep::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: -0.45rem 0 0 -0.45rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  animation: mv-busy-spin 0.7s linear infinite;
+  pointer-events: none;
+}
+
+.study-icon-btn.is-busy-keep::after,
+.mv-icon-btn.is-busy-keep::after,
+.mv-search-submit.is-busy-keep::after {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: -0.4rem 0 0 -0.4rem;
 }
 
 .mv-btn-primary {
